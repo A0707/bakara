@@ -29,21 +29,25 @@
      ══════════════════════════════════════ */
 
   :root {
-    --bg: #f1f5f9; --card: #fff; --border: #e2e8f0;
-    --text: #1e293b; --text2: #475569; --text3: #94a3b8;
+    --bg: #f8fafc; --card: #fff; --border: #e2e8f0;
+    --text: #0f172a; --text2: #475569; --text3: #94a3b8;
     --blue: #3b82f6; --green: #16a34a; --red: #dc2626;
     --purple: #7c3aed; --orange: #f59e0b;
     --header: linear-gradient(135deg,#0f172a,#1e293b);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI','Helvetica Neue',Arial,sans-serif; background: var(--bg); color: var(--text); }
+  body { font-family: 'Segoe UI','Helvetica Neue',Arial,sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
   input, select, button { font-family: inherit; }
   input:focus, select:focus { border-color: var(--blue) !important; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+  button:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); transition: all .15s; }
+  button { transition: all .15s; }
   ::-webkit-scrollbar { height: 6px; width: 6px; }
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
   @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
   .mono { font-family: 'JetBrains Mono','Fira Code','Consolas',monospace; }
+  table tbody tr:hover { background: #f1f5f9 !important; }
 </style>
 </head>
 <body>
@@ -118,18 +122,15 @@ const INIT_CHARGES=[{id:1,d:"Avance avocat Mahassine",c:"Avocat / Juridique",p:"
 
 const INIT_ALIM=[{id:1,s:"Rachid Laamiri (cumul)",m:375000,t:"Echeance",p:"2023-2024"},{id:2,s:"Abderazzak Tirmidi (cumul)",m:90000,t:"Echeance",p:"2024-2025"},{id:3,s:"Cheque HOUMAN 2025",m:18120,t:"Cheque",p:"2025"},{id:4,s:"Cheque HOUMAN 2026",m:15660,t:"Cheque",p:"2026"}];
 
-const mkLaam = () => Array.from({length:16},(_,i)=>({id:i+1,e:`${MOIS[(7+i)%12]} ${2023+Math.floor((7+i)/12)}`,v:25000,p:i<15?25000:0}));
-const mkTirm = () => [{id:1,e:"Dec 2024",v:25000,p:25000},{id:2,e:"Jan 2025",v:15000,p:15000},{id:3,e:"Fev 2025",v:25000,p:0},{id:4,e:"Mar 2025",v:25000,p:0},{id:5,e:"Avr 2025",v:25000,p:0},{id:6,e:"Mai 2025",v:25000,p:0},{id:7,e:"2 cheques",v:50000,p:50000}];
+// Helpers mkLaam/mkTirm supprimes - tabs Laamiri/Tirmidi enleves
 
 const fmt = n => new Intl.NumberFormat('fr-MA',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
 const fmtK = n => n>=1e6?`${(n/1e6).toFixed(1)}M`:n>=1e3?`${(n/1e3).toFixed(0)}K`:n.toFixed(0);
 
 // ── UI COMPONENTS ──
-function KPI({l,v,c,s}){return(<div style={{background:c,borderRadius:12,padding:"14px 16px",flex:1,minWidth:130}}><div style={{color:"rgba(255,255,255,0.8)",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5}}>{l}</div><div className="mono" style={{color:"#fff",fontSize:20,fontWeight:800,marginTop:4}}>{v}</div>{s&&<div style={{color:"rgba(255,255,255,0.7)",fontSize:10,marginTop:2}}>{s}</div>}</div>)}
 
 function Badge({t,c}){return<span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"22",color:c,border:`1px solid ${c}44`}}>{t}</span>}
 
-function Statut({p,v}){return p>=v&&v>0?<Badge t="PAYE" c="#22c55e"/>:p>0?<Badge t="PARTIEL" c="#f59e0b"/>:<Badge t="NP" c="#ef4444"/>}
 
 function Modal({show,onClose,title,children}){if(!show)return null;return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}><div style={{background:"#fff",borderRadius:16,padding:24,width:"92%",maxWidth:460,maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{fontSize:15,fontWeight:700}}>{title}</h3><button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>x</button></div>{children}</div></div>)}
 
@@ -175,56 +176,84 @@ function LoginScreen({onLogin}){
 }
 
 // ── DASHBOARD ──
-function Dash({ch,al,la,ti,lo}){
+function Dash({ch,al}){
   const tc=ch.reduce((s,x)=>s+x.m,0), ta=al.reduce((s,x)=>s+x.m,0), caisse=ta-tc;
-  const lp=la.reduce((s,x)=>s+x.p,0), tp=ti.reduce((s,x)=>s+x.p,0);
-  const lr=la.reduce((s,x)=>s+x.v,0)-lp, tr=ti.reduce((s,x)=>s+x.v,0)-tp;
   const byCat=CATS.map(cat=>({cat,t:ch.filter(x=>x.c===cat).reduce((s,x)=>s+x.m,0)})).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
   const mx=Math.max(...byCat.map(x=>x.t),1);
-  const loyP=lo.reduce((s,l)=>s+l.paiements.filter(p=>p.paye).reduce((ss,p)=>ss+p.montant,0),0);
-  const loyD=lo.reduce((s,l)=>s+l.paiements.filter(p=>!p.paye).length*l.loyer,0);
+  // Sort charges: by date desc (newest first), then by id desc as fallback
+  const sortedCh=[...ch].sort((a,b)=>{
+    if(a.date&&b.date)return b.date.localeCompare(a.date);
+    if(a.date)return -1;
+    if(b.date)return 1;
+    return b.id-a.id;
+  });
+  const last10=sortedCh.slice(0,10);
+  const fmtDate=d=>{if(!d)return"";const[y,m,day]=d.split("-");return`${day}/${m}/${y}`};
 
   return(<div>
-    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
-      <KPI l="Alimentation" v={`${fmtK(ta)} MAD`} c="#16a34a" s="Total fonds"/>
-      <KPI l="Depenses" v={`${fmtK(tc)} MAD`} c="#dc2626" s={`${ch.length} lignes`}/>
-      <KPI l="Caisse" v={`${fmtK(caisse)} MAD`} c={caisse>=0?"#2563eb":"#991b1b"} s={caisse>=0?"Positif":"Deficit"}/>
-      <KPI l="Recouvrement" v={`${fmtK(lp+tp)} MAD`} c="#7c3aed" s={`Reste ${fmtK(lr+tr)}`}/>
+    {/* HERO CAISSE */}
+    <div style={{background:caisse>=0?"linear-gradient(135deg,#1e40af 0%,#7c3aed 100%)":"linear-gradient(135deg,#991b1b 0%,#7c2d12 100%)",borderRadius:18,padding:"24px 28px",color:"#fff",marginBottom:16,boxShadow:"0 8px 24px rgba(59,130,246,0.25)",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.08)"}}/>
+      <div style={{position:"absolute",bottom:-60,right:60,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,0.05)"}}/>
+      <div style={{position:"relative",zIndex:1}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+          <span style={{fontSize:22}}>💰</span>
+          <span style={{fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",opacity:.85}}>Caisse actuelle</span>
+        </div>
+        <div className="mono" style={{fontSize:42,fontWeight:800,lineHeight:1.1,letterSpacing:-1,marginBottom:6}}>{fmt(caisse)} <span style={{fontSize:18,opacity:.7,fontWeight:600}}>MAD</span></div>
+        <div style={{display:"flex",gap:18,flexWrap:"wrap",fontSize:11,opacity:.9,marginTop:8}}>
+          <span>▲ Entrees: <span className="mono" style={{fontWeight:700}}>{fmtK(ta)}</span></span>
+          <span>▼ Sorties: <span className="mono" style={{fontWeight:700}}>{fmtK(tc)}</span></span>
+          <span style={{padding:"2px 10px",background:"rgba(255,255,255,0.15)",borderRadius:12,fontWeight:600}}>{caisse>=0?"Positif":"Deficit"}</span>
+        </div>
+      </div>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
-      <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0"}}>
-        <h4 style={{fontSize:12,fontWeight:700,color:"#475569",textTransform:"uppercase",marginBottom:10,letterSpacing:.5}}>Depenses par categorie</h4>
-        {byCat.map(({cat,t})=>(<div key={cat} style={{marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
-            <span style={{fontWeight:500}}>{cat}</span>
-            <span className="mono" style={{fontWeight:700}}>{fmt(t)}</span>
-          </div>
-          <div style={{background:"#e2e8f0",borderRadius:4,height:6,overflow:"hidden"}}>
-            <div style={{width:`${(t/mx)*100}%`,height:"100%",background:CAT_C[cat],borderRadius:4,transition:"width .5s"}}/>
-          </div>
-        </div>))}
+
+    {/* KPI ROW */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:16}}>
+      <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",border:"1px solid #e2e8f0",borderLeft:"4px solid #16a34a",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#16a34a",letterSpacing:.5,textTransform:"uppercase"}}>Alimentation</div>
+        <div className="mono" style={{fontSize:22,fontWeight:800,color:"#0f172a",marginTop:4}}>{fmt(ta)}</div>
+        <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{al.length} source(s)</div>
       </div>
-      <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0"}}>
-        <h4 style={{fontSize:12,fontWeight:700,color:"#475569",textTransform:"uppercase",marginBottom:10,letterSpacing:.5}}>Recouvrement</h4>
-        {[{n:"Rachid Laamiri",p:lp,v:la.reduce((s,x)=>s+x.v,0)},{n:"Abderazzak Tirmidi",p:tp,v:ti.reduce((s,x)=>s+x.v,0)}].map(r=>(
-          <div key={r.n} style={{marginBottom:10,padding:10,background:"#f8fafc",borderRadius:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{fontSize:12,fontWeight:600}}>{r.n}</span>
-              <span style={{fontSize:12,fontWeight:700,color:r.p>=r.v?"#16a34a":"#f59e0b"}}>{r.v>0?Math.round(r.p/r.v*100):0}%</span>
-            </div>
-            <div style={{background:"#e2e8f0",borderRadius:4,height:6}}>
-              <div style={{width:`${r.v>0?(r.p/r.v)*100:0}%`,height:"100%",background:r.p>=r.v?"#22c55e":"#f59e0b",borderRadius:4}}/>
-            </div>
-          </div>
-        ))}
-        {lo.filter(l=>l.locataire).length>0&&<div style={{marginTop:10,padding:10,background:"#f8fafc",borderRadius:8}}>
-          <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>Loyers</div>
-          <div style={{display:"flex",gap:12,fontSize:11}}>
-            <span style={{color:"#16a34a",fontWeight:600}}>Percus: {fmt(loyP)}</span>
-            <span style={{color:"#ef4444",fontWeight:600}}>Dus: {fmt(loyD)}</span>
-          </div>
-        </div>}
+      <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",border:"1px solid #e2e8f0",borderLeft:"4px solid #dc2626",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+        <div style={{fontSize:10,fontWeight:700,color:"#dc2626",letterSpacing:.5,textTransform:"uppercase"}}>Depenses</div>
+        <div className="mono" style={{fontSize:22,fontWeight:800,color:"#0f172a",marginTop:4}}>{fmt(tc)}</div>
+        <div style={{fontSize:10,color:"#94a3b8",marginTop:2}}>{ch.length} ligne(s)</div>
       </div>
+    </div>
+
+    {/* LAST 10 CHARGES */}
+    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginBottom:16,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+      <div style={{padding:"12px 16px",borderBottom:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <h4 style={{fontSize:12,fontWeight:700,color:"#1e293b",textTransform:"uppercase",letterSpacing:.5}}>Dernieres charges</h4>
+        <span style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>{last10.length}/{ch.length}</span>
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead><tr style={{background:"#f8fafc"}}>{["Date","Designation","Categorie","Montant"].map(h=><th key={h} style={{padding:"8px 12px",fontWeight:600,color:"#64748b",textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>)}</tr></thead>
+          <tbody>{last10.map((x,i)=><tr key={x.id} style={{borderBottom:i<last10.length-1?"1px solid #f1f5f9":"none"}}>
+            <td className="mono" style={{padding:"8px 12px",color:"#64748b",whiteSpace:"nowrap"}}>{x.date?fmtDate(x.date):(x.p||"--")}</td>
+            <td style={{padding:"8px 12px",fontWeight:500,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.d}</td>
+            <td style={{padding:"8px 12px"}}><Badge t={x.c} c={CAT_C[x.c]||"#64748b"}/></td>
+            <td className="mono" style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:"#dc2626"}}>{fmt(x.m)}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* CATEGORIES */}
+    <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",border:"1px solid #e2e8f0",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+      <h4 style={{fontSize:12,fontWeight:700,color:"#1e293b",textTransform:"uppercase",marginBottom:12,letterSpacing:.5}}>Depenses par categorie</h4>
+      {byCat.map(({cat,t})=>(<div key={cat} style={{marginBottom:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+          <span style={{fontWeight:500,color:"#475569"}}>{cat}</span>
+          <span className="mono" style={{fontWeight:700,color:"#0f172a"}}>{fmt(t)}</span>
+        </div>
+        <div style={{background:"#f1f5f9",borderRadius:4,height:8,overflow:"hidden"}}>
+          <div style={{width:`${(t/mx)*100}%`,height:"100%",background:`linear-gradient(90deg,${CAT_C[cat]},${CAT_C[cat]}cc)`,borderRadius:4,transition:"width .6s"}}/>
+        </div>
+      </div>))}
     </div>
   </div>);
 }
@@ -232,47 +261,57 @@ function Dash({ch,al,la,ti,lo}){
 // ── CHARGES ──
 function Charges({data,setData,save,ro}){
   const [show,setShow]=useState(false),[fil,setFil]=useState(""),[q,setQ]=useState("");
-  const [form,setF]=useState({d:"",c:"",p:"",m:0,n:""}),[eid,setEid]=useState(null);
-  const list=data.filter(x=>(!fil||x.c===fil)&&(!q||x.d.toLowerCase().includes(q.toLowerCase())));
+  const [form,setF]=useState({d:"",c:"",date:"",m:0,n:""}),[eid,setEid]=useState(null);
+  const today=()=>new Date().toISOString().slice(0,10);
+  const fmtD=d=>{if(!d)return"--";const[y,m,day]=d.split("-");return`${day}/${m}/${y}`};
+  // Filter + sort by date desc (newest first), legacy entries fallback to id desc
+  const filtered=data.filter(x=>(!fil||x.c===fil)&&(!q||x.d.toLowerCase().includes(q.toLowerCase())));
+  const list=[...filtered].sort((a,b)=>{
+    if(a.date&&b.date)return b.date.localeCompare(a.date);
+    if(a.date)return -1;
+    if(b.date)return 1;
+    return b.id-a.id;
+  });
   const tot=list.reduce((s,x)=>s+x.m,0);
 
-  const doSave=()=>{if(!form.d||!form.m)return;const u=eid?data.map(x=>x.id===eid?{...x,...form}:x):[...data,{...form,id:Date.now()}];setData(u);save(u);setF({d:"",c:"",p:"",m:0,n:""});setEid(null);setShow(false)};
-  const doEdit=x=>{setF({d:x.d,c:x.c,p:x.p,m:x.m,n:x.n||""});setEid(x.id);setShow(true)};
+  const doSave=()=>{if(!form.d||!form.m)return;const u=eid?data.map(x=>x.id===eid?{...x,...form}:x):[...data,{...form,id:Date.now()}];setData(u);save(u);setF({d:"",c:"",date:"",m:0,n:""});setEid(null);setShow(false)};
+  const doEdit=x=>{setF({d:x.d,c:x.c,date:x.date||"",m:x.m,n:x.n||""});setEid(x.id);setShow(true)};
   const doDel=id=>{if(!confirm("Supprimer cette charge ?"))return;const u=data.filter(x=>x.id!==id);setData(u);save(u)};
+  const doAdd=()=>{setEid(null);setF({d:"",c:"",date:today(),m:0,n:""});setShow(true)};
 
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-      {!ro&&<Btn onClick={()=>{setEid(null);setF({d:"",c:"",p:"",m:0,n:""});setShow(true)}} c="#16a34a">+ Charge</Btn>}
-      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher..." style={{padding:"7px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,flex:1,minWidth:100,outline:"none"}}/>
-      <select value={fil} onChange={e=>setFil(e.target.value)} style={{padding:"7px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:11,background:"#fff"}}>
+      {!ro&&<Btn onClick={doAdd} c="#16a34a">+ Charge</Btn>}
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher..." style={{padding:"8px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,flex:1,minWidth:120,outline:"none"}}/>
+      <select value={fil} onChange={e=>setFil(e.target.value)} style={{padding:"8px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:11,background:"#fff"}}>
         <option value="">Toutes</option>{CATS.map(c=><option key={c} value={c}>{c}</option>)}
       </select>
     </div>
-    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-          <thead><tr style={{background:"#1e293b"}}>{["#","Designation","Categorie","Periode","Montant",...(ro?[]:[""])].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+          <thead><tr style={{background:"#1e293b"}}>{["#","Date","Designation","Categorie","Montant",...(ro?[]:[""])].map(h=><th key={h} style={{padding:"10px 12px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>)}</tr></thead>
           <tbody>{list.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
-            <td style={{padding:"7px 10px",color:"#94a3b8"}}>{i+1}</td>
-            <td style={{padding:"7px 10px",fontWeight:500,maxWidth:200}}>{x.d}{x.n?<span style={{color:"#94a3b8",fontSize:9,marginLeft:4}}>({x.n})</span>:null}</td>
-            <td style={{padding:"7px 10px"}}><Badge t={x.c} c={CAT_C[x.c]||"#64748b"}/></td>
-            <td style={{padding:"7px 10px",color:"#64748b"}}>{x.p}</td>
-            <td className="mono" style={{padding:"7px 10px",textAlign:"right",fontWeight:600}}>{fmt(x.m)}</td>
-            {!ro&&<td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
-              <button onClick={()=>doEdit(x)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#3b82f6",padding:2}}>&#9998;</button>
-              <button onClick={()=>doDel(x.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ef4444",padding:2,marginLeft:2}}>&#10005;</button>
+            <td style={{padding:"8px 12px",color:"#94a3b8"}}>{i+1}</td>
+            <td className="mono" style={{padding:"8px 12px",color:"#64748b",whiteSpace:"nowrap"}}>{x.date?fmtD(x.date):(x.p||"--")}</td>
+            <td style={{padding:"8px 12px",fontWeight:500,maxWidth:240}}>{x.d}{x.n?<span style={{color:"#94a3b8",fontSize:9,marginLeft:4}}>({x.n})</span>:null}</td>
+            <td style={{padding:"8px 12px"}}><Badge t={x.c} c={CAT_C[x.c]||"#64748b"}/></td>
+            <td className="mono" style={{padding:"8px 12px",textAlign:"right",fontWeight:600}}>{fmt(x.m)}</td>
+            {!ro&&<td style={{padding:"8px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
+              <button onClick={()=>doEdit(x)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#3b82f6",padding:3}}>&#9998;</button>
+              <button onClick={()=>doDel(x.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#ef4444",padding:3,marginLeft:2}}>&#10005;</button>
             </td>}
           </tr>)}</tbody>
-          <tfoot><tr style={{background:"#1e293b"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700,fontSize:11}}>TOTAL ({list.length})</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td>{!ro&&<td/>}</tr></tfoot>
+          <tfoot><tr style={{background:"#1e293b"}}><td colSpan={4} style={{padding:"10px 12px",color:"#fff",fontWeight:700,fontSize:11}}>TOTAL ({list.length})</td><td className="mono" style={{padding:"10px 12px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td>{!ro&&<td/>}</tr></tfoot>
         </table>
       </div>
     </div>
-    <Modal show={show} onClose={()=>setShow(false)} title={eid?"Modifier":"Nouvelle charge"}>
+    <Modal show={show} onClose={()=>setShow(false)} title={eid?"Modifier la charge":"Nouvelle charge"}>
       <Inp l="Designation" v={form.d} onChange={v=>setF({...form,d:v})} ph="Ex: Frais avocat..."/>
       <Inp l="Categorie" v={form.c} onChange={v=>setF({...form,c:v})} opts={CATS}/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         <Inp l="Montant (MAD)" v={form.m} onChange={v=>setF({...form,m:v})} type="number"/>
-        <Inp l="Periode" v={form.p} onChange={v=>setF({...form,p:v})} ph="2025"/>
+        <Inp l="Date" v={form.date} onChange={v=>setF({...form,date:v})} type="date"/>
       </div>
       <Inp l="Notes" v={form.n} onChange={v=>setF({...form,n:v})} ph="Optionnel"/>
       <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
@@ -323,137 +362,13 @@ function Alim({data,setData,save,ro}){
   </div>);
 }
 
-// ── ECHEANCIER ──
-function Ech({title,data,setData,save,color,ro}){
-  const [show,setShow]=useState(false),[form,setF]=useState({e:"",v:0,p:0});
-  const tv=data.reduce((s,x)=>s+x.v,0),tp=data.reduce((s,x)=>s+x.p,0),taux=tv>0?tp/tv:0;
-  const add=()=>{if(!form.e)return;setData(d=>{const u=[...d,{...form,id:Date.now()}];save(u);return u});setF({e:"",v:0,p:0});setShow(false)};
-  const upd=(id,val)=>{const u=data.map(x=>x.id===id?{...x,p:val}:x);setData(u);save(u)};
-
-  return(<div>
-    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-      <div style={{background:color,borderRadius:10,padding:"8px 14px",color:"#fff"}}>
-        <div style={{fontSize:9,fontWeight:600,opacity:.8}}>TAUX</div>
-        <div style={{fontSize:18,fontWeight:800}}>{(taux*100).toFixed(1)}%</div>
-      </div>
-      <div style={{background:"#f8fafc",borderRadius:10,padding:"8px 14px",border:"1px solid #e2e8f0"}}>
-        <div style={{fontSize:9,fontWeight:600,color:"#64748b"}}>PAYE</div>
-        <div className="mono" style={{fontSize:16,fontWeight:700,color:"#16a34a"}}>{fmt(tp)}</div>
-      </div>
-      <div style={{background:"#f8fafc",borderRadius:10,padding:"8px 14px",border:"1px solid #e2e8f0"}}>
-        <div style={{fontSize:9,fontWeight:600,color:"#64748b"}}>RESTE</div>
-        <div className="mono" style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>{fmt(tv-tp)}</div>
-      </div>
-      <div style={{flex:1}}/>{!ro&&<Btn onClick={()=>setShow(true)} sm>+ Echeance</Btn>}
-    </div>
-    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-        <thead><tr style={{background:"#1e293b"}}>{["#","Echeance","Prevu","Paye","Reste","Statut"].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:["Prevu","Paye","Reste"].includes(h)?"right":"center",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
-        <tbody>{data.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
-          <td style={{padding:"7px 10px",textAlign:"center",color:"#94a3b8"}}>{i+1}</td>
-          <td style={{padding:"7px 10px",textAlign:"center",fontWeight:500}}>{x.e}</td>
-          <td className="mono" style={{padding:"7px 10px",textAlign:"right"}}>{fmt(x.v)}</td>
-          <td style={{padding:"7px 10px",textAlign:"right"}}>
-            {ro?<span className="mono" style={{fontWeight:600}}>{fmt(x.p)}</span>:<input type="number" value={x.p} onChange={e=>upd(x.id,parseFloat(e.target.value)||0)} style={{width:85,padding:"3px 6px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:11,textAlign:"right",fontFamily:"'JetBrains Mono',monospace",background:x.p>=x.v&&x.v>0?"#dcfce7":"#fff",outline:"none"}}/>}
-          </td>
-          <td className="mono" style={{padding:"7px 10px",textAlign:"right",color:x.v-x.p>0?"#ef4444":"#16a34a"}}>{fmt(x.v-x.p)}</td>
-          <td style={{padding:"7px 10px",textAlign:"center"}}><Statut p={x.p} v={x.v}/></td>
-        </tr>)}</tbody>
-      </table>
-    </div>
-    <Modal show={show} onClose={()=>setShow(false)} title="Nouvelle echeance">
-      <Inp l="Echeance" v={form.e} onChange={v=>setF({...form,e:v})} ph="Juin 2025"/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        <Inp l="Prevu (MAD)" v={form.v} onChange={v=>setF({...form,v:v})} type="number"/>
-        <Inp l="Paye (MAD)" v={form.p} onChange={v=>setF({...form,p:v})} type="number"/>
-      </div>
-      <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
-        <Btn onClick={()=>setShow(false)} outline c="#64748b">Annuler</Btn>
-        <Btn onClick={add} disabled={!form.e}>Ajouter</Btn>
-      </div>
-    </Modal>
-  </div>);
-}
-
-// ── LOYERS ──
-function Loyers({data,setData,save,ro}){
-  const [showL,setShowL]=useState(false),[showP,setShowP]=useState(null);
-  const [form,setF]=useState({locataire:"",bien:"",loyer:0});
-  const [pf,setPf]=useState({mois:"",annee:2025,montant:0,paye:true});
-
-  const addL=()=>{if(!form.locataire)return;const u=[...data,{...form,id:Date.now(),paiements:[]}];setData(u);save(u);setF({locataire:"",bien:"",loyer:0});setShowL(false)};
-  const addP=lid=>{if(!pf.mois)return;const u=data.map(l=>l.id===lid?{...l,paiements:[...l.paiements,{...pf,id:Date.now()}]}:l);setData(u);save(u);setShowP(null)};
-  const togP=(lid,pid)=>{if(ro)return;const u=data.map(l=>l.id===lid?{...l,paiements:l.paiements.map(p=>p.id===pid?{...p,paye:!p.paye}:p)}:l);setData(u);save(u)};
-  const delL=id=>{if(!confirm("Supprimer ce locataire et tout son historique ?"))return;const u=data.filter(l=>l.id!==id);setData(u);save(u)};
-
-  return(<div>
-    {!ro&&<Btn onClick={()=>setShowL(true)} c="#16a34a">+ Locataire</Btn>}
-    {data.filter(l=>l.locataire).map(l=>{
-      const percu=l.paiements.filter(p=>p.paye).reduce((s,p)=>s+p.montant,0);
-      const impayes=l.paiements.filter(p=>!p.paye).length;
-      return(<div key={l.id} style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",marginTop:12,overflow:"hidden"}}>
-        <div style={{background:"#1e293b",padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{l.locataire}</span><span style={{color:"#94a3b8",fontSize:11,marginLeft:8}}>{l.bien}</span></div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span className="mono" style={{color:"#22c55e",fontSize:12,fontWeight:600}}>{fmt(l.loyer)}/mois</span>
-            {!ro&&<button onClick={()=>delL(l.id)} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>&#10005;</button>}
-          </div>
-        </div>
-        <div style={{padding:10}}>
-          <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{background:"#dcfce7",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#15803d",fontWeight:600}}>Percu: {fmt(percu)}</span>
-            {impayes>0&&<span style={{background:"#fee2e2",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#dc2626",fontWeight:600}}>{impayes} impaye(s)</span>}
-            <div style={{flex:1}}/>{!ro&&<Btn onClick={()=>{setShowP(l.id);setPf({mois:"",annee:2025,montant:l.loyer,paye:true})}} sm c="#2563eb">+ Mois</Btn>}
-          </div>
-          {l.paiements.length>0?<table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-            <thead><tr style={{background:"#f1f5f9"}}>{["Mois","Montant","Statut"].map(h=><th key={h} style={{padding:"5px 8px",fontWeight:600,color:"#475569",textAlign:"left",fontSize:10}}>{h}</th>)}</tr></thead>
-            <tbody>{l.paiements.map(p=><tr key={p.id} style={{borderBottom:"1px solid #f1f5f9",cursor:ro?"default":"pointer"}} onClick={()=>togP(l.id,p.id)}>
-              <td style={{padding:"5px 8px"}}>{p.mois} {p.annee}</td>
-              <td className="mono" style={{padding:"5px 8px",fontWeight:500}}>{fmt(p.montant)}</td>
-              <td style={{padding:"5px 8px"}}>{p.paye?<Badge t="PAYE" c="#22c55e"/>:<Badge t="IMPAYE" c="#ef4444"/>}</td>
-            </tr>)}</tbody>
-          </table>:<p style={{color:"#94a3b8",fontSize:11,textAlign:"center",padding:8}}>{ro?"Aucun paiement enregistre":"Cliquer \"+ Mois\" pour enregistrer les paiements"}</p>}
-        </div>
-        <Modal show={showP===l.id} onClose={()=>setShowP(null)} title={`Loyer: ${l.locataire}`}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <Inp l="Mois" v={pf.mois} onChange={v=>setPf({...pf,mois:v})} opts={MOIS}/>
-            <Inp l="Annee" v={pf.annee} onChange={v=>setPf({...pf,annee:parseInt(v)||2025})} type="number"/>
-          </div>
-          <Inp l="Montant (MAD)" v={pf.montant} onChange={v=>setPf({...pf,montant:v})} type="number"/>
-          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:12,cursor:"pointer"}}>
-            <input type="checkbox" checked={pf.paye} onChange={e=>setPf({...pf,paye:e.target.checked})}/>Deja paye
-          </label>
-          <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-            <Btn onClick={()=>setShowP(null)} outline c="#64748b">Annuler</Btn>
-            <Btn onClick={()=>addP(l.id)} disabled={!pf.mois}>Ajouter</Btn>
-          </div>
-        </Modal>
-      </div>);
-    })}
-    {!data.filter(l=>l.locataire).length&&<div style={{textAlign:"center",padding:30,color:"#94a3b8",marginTop:12}}>
-      <div style={{fontSize:30,marginBottom:6}}>&#127968;</div>
-      <p style={{fontSize:13}}>{ro?"Aucun locataire enregistre.":"Aucun locataire. Cliquer \"+ Locataire\" pour commencer."}</p>
-    </div>}
-    <Modal show={showL} onClose={()=>setShowL(false)} title="Nouveau locataire">
-      <Inp l="Nom" v={form.locataire} onChange={v=>setF({...form,locataire:v})} ph="Mohamed Alami"/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        <Inp l="Bien / Adresse" v={form.bien} onChange={v=>setF({...form,bien:v})} ph="Appt Bakara"/>
-        <Inp l="Loyer mensuel (MAD)" v={form.loyer} onChange={v=>setF({...form,loyer:v})} type="number"/>
-      </div>
-      <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
-        <Btn onClick={()=>setShowL(false)} outline c="#64748b">Annuler</Btn>
-        <Btn onClick={addL} disabled={!form.locataire}>Ajouter</Btn>
-      </div>
-    </Modal>
-  </div>);
-}
 
 // ── MAIN APP ──
-const TABS=[{k:"dash",l:"Dashboard",i:"◼"},{k:"ch",l:"Charges",i:"▼"},{k:"al",l:"Alimentation",i:"▲"},{k:"lo",l:"Loyers",i:"⌂"},{k:"la",l:"Laamiri",i:"●"},{k:"ti",l:"Tirmidi",i:"●"}];
+const TABS=[{k:"dash",l:"Dashboard",i:"◼"},{k:"ch",l:"Charges",i:"▼"},{k:"al",l:"Alimentation",i:"▲"}];
 
 function App(){
   const [tab,setTab]=useState("dash"),[loading,setLoading]=useState(true),[saved,setSaved]=useState(false);
-  const [ch,setCh]=useState([]),[al,setAl]=useState([]),[la,setLa]=useState([]),[ti,setTi]=useState([]),[lo,setLo]=useState([]);
+  const [ch,setCh]=useState([]),[al,setAl]=useState([]);
   const [session,setSession]=useState(null),[profile,setProfile]=useState(null),[authReady,setAuthReady]=useState(false);
 
   // 1) Auth bootstrap: check existing session + subscribe to changes
@@ -462,7 +377,7 @@ function App(){
     supabase.auth.getSession().then(({data})=>{setSession(data.session);setAuthReady(true)});
     const {data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>{
       setSession(s);
-      if(!s){setProfile(null);setCh([]);setAl([]);setLa([]);setTi([]);setLo([])}
+      if(!s){setProfile(null);setCh([]);setAl([])}
     });
     return ()=>subscription.unsubscribe();
   },[]);
@@ -481,17 +396,14 @@ function App(){
     if(supabase&&!session){setLoading(false);return}
     (async()=>{
       setLoading(true);
-      const [c,a,l,t,o]=await Promise.all([loadData("charges",INIT_CHARGES),loadData("alim",INIT_ALIM),loadData("laamiri",mkLaam()),loadData("tirmidi",mkTirm()),loadData("loyers",[])]);
-      setCh(c);setAl(a);setLa(l);setTi(t);setLo(o);setLoading(false);
+      const [c,a]=await Promise.all([loadData("charges",INIT_CHARGES),loadData("alim",INIT_ALIM)]);
+      setCh(c);setAl(a);setLoading(false);
     })();
   },[session]);
 
   const flash=useCallback(()=>{setSaved(true);setTimeout(()=>setSaved(false),1500)},[]);
   const sC=d=>{saveData("charges",d);flash()};
   const sA=d=>{saveData("alim",d);flash()};
-  const sL=d=>{saveData("laamiri",d);flash()};
-  const sT=d=>{saveData("tirmidi",d);flash()};
-  const sO=d=>{saveData("loyers",d);flash()};
 
   const logout=async()=>{if(confirm("Se deconnecter ?"))await supabase.auth.signOut()};
 
@@ -504,33 +416,27 @@ function App(){
   if(supabase&&!session)return<LoginScreen onLogin={setSession}/>;
   if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#64748b"}}>Chargement des donnees...</div>;
 
-  return(<div style={{background:"#f1f5f9",minHeight:"100vh"}}>
-    <div style={{background:"linear-gradient(135deg,#0f172a,#1e293b)",padding:"14px 16px",position:"sticky",top:0,zIndex:100}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,gap:8,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:13}}>B</div>
-          <div><div style={{color:"#fff",fontSize:15,fontWeight:700}}>BAKARA</div><div style={{color:"#64748b",fontSize:9}}>Gestion financiere {storage.isOnline()?"● En ligne":"○ Local"}</div></div>
+  return(<div style={{background:"var(--bg)",minHeight:"100vh"}}>
+    <div style={{background:"linear-gradient(135deg,#0f172a,#1e293b)",padding:"14px 16px",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:34,height:34,borderRadius:9,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:15,boxShadow:"0 2px 8px rgba(59,130,246,0.4)"}}>B</div>
+          <div><div style={{color:"#fff",fontSize:16,fontWeight:700,letterSpacing:.3}}>BAKARA</div><div style={{color:"#64748b",fontSize:9}}>Gestion financiere {storage.isOnline()?"● En ligne":"○ Local"}</div></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          {saved&&<span style={{color:"#22c55e",fontSize:10,fontWeight:600,animation:"fadeIn .3s"}}>Sauvegarde !</span>}
-          <div style={{background:"#334155",borderRadius:8,padding:"5px 10px",fontSize:10,color:"#94a3b8"}}>
-            Caisse: <span className="mono" style={{color:ta-tc>=0?"#22c55e":"#ef4444",fontWeight:700}}>{fmtK(ta-tc)} MAD</span>
-          </div>
-          {roleBadge&&<span title={profile.email} style={{background:roleBadge.c,color:"#fff",padding:"4px 9px",borderRadius:6,fontSize:9,fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>{roleBadge.l}</span>}
-          {session&&<button onClick={logout} title={"Se deconnecter ("+profile?.email+")"} style={{background:"#334155",color:"#fff",border:"none",borderRadius:6,padding:"5px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>⏏ Logout</button>}
+          {saved&&<span style={{color:"#22c55e",fontSize:10,fontWeight:600,animation:"fadeIn .3s"}}>✓ Sauvegarde</span>}
+          {roleBadge&&<span title={profile.email} style={{background:roleBadge.c,color:"#fff",padding:"4px 10px",borderRadius:6,fontSize:9,fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>{roleBadge.l}</span>}
+          {session&&<button onClick={logout} title={"Se deconnecter ("+(profile?.email||"")+")"} style={{background:"#334155",color:"#fff",border:"none",borderRadius:6,padding:"5px 11px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>⏏ Logout</button>}
         </div>
       </div>
-      <div style={{display:"flex",gap:3,overflowX:"auto"}}>
-        {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",background:tab===t.k?"#3b82f6":"transparent",color:tab===t.k?"#fff":"#94a3b8"}}>{t.i} {t.l}</button>)}
+      <div style={{display:"flex",gap:4,overflowX:"auto"}}>
+        {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"7px 16px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",background:tab===t.k?"#3b82f6":"transparent",color:tab===t.k?"#fff":"#94a3b8",transition:"all .2s"}}>{t.i} {t.l}</button>)}
       </div>
     </div>
-    <div style={{padding:"14px 16px",maxWidth:960,margin:"0 auto"}}>
-      {tab==="dash"&&<Dash ch={ch} al={al} la={la} ti={ti} lo={lo}/>}
+    <div style={{padding:"16px",maxWidth:1000,margin:"0 auto"}}>
+      {tab==="dash"&&<Dash ch={ch} al={al}/>}
       {tab==="ch"&&<Charges data={ch} setData={setCh} save={sC} ro={ro}/>}
       {tab==="al"&&<Alim data={al} setData={setAl} save={sA} ro={ro}/>}
-      {tab==="lo"&&<Loyers data={lo} setData={setLo} save={sO} ro={ro}/>}
-      {tab==="la"&&<Ech title="Laamiri" data={la} setData={setLa} save={sL} color="#2563eb" ro={ro}/>}
-      {tab==="ti"&&<Ech title="Tirmidi" data={ti} setData={setTi} save={sT} color="#dc2626" ro={ro}/>}
     </div>
   </div>);
 }
