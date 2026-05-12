@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BAKARA - Gestion Financiere</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233b82f6'/><text x='8' y='24' font-size='22' fill='white' font-weight='bold'>B</text></svg>">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ══════════════════════════════════════
+     BAKARA - Configuration Supabase
+     ══════════════════════════════════════
+     Pour activer le stockage en ligne:
+     1. Creer un compte sur https://supabase.com (gratuit)
+     2. Creer un projet
+     3. Aller dans SQL Editor et executer:
+        CREATE TABLE bakara_data (
+          id TEXT PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        ALTER TABLE bakara_data ENABLE ROW LEVEL SECURITY;
+        CREATE POLICY "allow_all" ON bakara_data FOR ALL USING (true);
+     4. Copier l'URL et la cle anon depuis Settings > API
+     5. Les mettre dans le script ci-dessous
+     ══════════════════════════════════════ */
+
+  :root {
+    --bg: #f1f5f9; --card: #fff; --border: #e2e8f0;
+    --text: #1e293b; --text2: #475569; --text3: #94a3b8;
+    --blue: #3b82f6; --green: #16a34a; --red: #dc2626;
+    --purple: #7c3aed; --orange: #f59e0b;
+    --header: linear-gradient(135deg,#0f172a,#1e293b);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI','Helvetica Neue',Arial,sans-serif; background: var(--bg); color: var(--text); }
+  input, select, button { font-family: inherit; }
+  input:focus, select:focus { border-color: var(--blue) !important; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+  ::-webkit-scrollbar { height: 6px; width: 6px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  .mono { font-family: 'JetBrains Mono','Fira Code','Consolas',monospace; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  CONFIGURATION - Modifier ici
+// ══════════════════════════════════════════
+window.BAKARA_CONFIG = {
+  // Mettre vos identifiants Supabase ici (laisser vide = localStorage uniquement)
+  SUPABASE_URL: "https://vpzsrmwthtllmwmsgfsn.supabase.co",
+  SUPABASE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZwenNybXd0aHRsbG13bXNnZnNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1ODg3NDQsImV4cCI6MjA5NDE2NDc0NH0.Lssiy3_jWENYcstScl9QsqNZ3RM8ABLdCnEitvWYJ2k",
+};
+</script>
+
+<script type="text/babel" data-type="module">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ── STORAGE LAYER ──
+const DB_PREFIX = "bakara_";
+
+class Storage {
+  constructor() {
+    const cfg = window.BAKARA_CONFIG || {};
+    this.supabase = null;
+    this.online = false;
+    if (cfg.SUPABASE_URL && cfg.SUPABASE_KEY) {
+      try {
+        this.supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY);
+        this.online = true;
+      } catch(e) { console.warn("Supabase init failed:", e); }
+    }
+  }
+
+  async get(key) {
+    if (this.online) {
+      try {
+        const { data, error } = await this.supabase.from('bakara_data').select('data').eq('id', key).single();
+        if (!error && data) return data.data;
+      } catch(e) { console.warn("Supabase read failed, using local:", e); }
+    }
+    const v = localStorage.getItem(DB_PREFIX + key);
+    return v ? JSON.parse(v) : null;
+  }
+
+  async set(key, value) {
+    localStorage.setItem(DB_PREFIX + key, JSON.stringify(value));
+    if (this.online) {
+      try {
+        await this.supabase.from('bakara_data').upsert({ id: key, data: value, updated_at: new Date().toISOString() });
+      } catch(e) { console.warn("Supabase write failed:", e); }
+    }
+  }
+
+  isOnline() { return this.online; }
+}
+
+const storage = new Storage();
+
+async function loadData(key, fallback) {
+  const d = await storage.get(key);
+  return d || fallback;
+}
+async function saveData(key, data) { await storage.set(key, data); }
+
+// ── DATA ──
+const CATS = ["Avocat / Juridique","Huissier","Credits / Prets","Travaux / Maison","Figuig / Agriculture","Medical","Transport","Divers"];
+const CAT_C = {"Avocat / Juridique":"#3b82f6","Huissier":"#f59e0b","Credits / Prets":"#ef4444","Travaux / Maison":"#22c55e","Figuig / Agriculture":"#eab308","Medical":"#a855f7","Transport":"#64748b","Divers":"#94a3b8"};
+const MOIS = ["Jan","Fev","Mar","Avr","Mai","Juin","Juil","Aout","Sep","Oct","Nov","Dec"];
+
+const INIT_CHARGES=[{id:1,d:"Avance avocat Mahassine",c:"Avocat / Juridique",p:"2023",m:1500,n:""},{id:2,d:"Avocat Saida Beloutt",c:"Avocat / Juridique",p:"2023",m:20000,n:""},{id:3,d:"Credit Mustapha",c:"Credits / Prets",p:"2024",m:290000,n:"150K+140K"},{id:4,d:"Operation Malika",c:"Medical",p:"2023",m:20000,n:""},{id:5,d:"Aid Kbir 2023",c:"Divers",p:"2023",m:5000,n:""},{id:6,d:"Credit Hajar",c:"Credits / Prets",p:"Mars 2024",m:5000,n:""},{id:7,d:"Aid Kbir 2024",c:"Divers",p:"2024",m:2500,n:""},{id:8,d:"Credit Hajar",c:"Credits / Prets",p:"Oct 2024",m:10000,n:""},{id:9,d:"Huissier Ifragh",c:"Huissier",p:"2025",m:2500,n:""},{id:10,d:"Soudeur",c:"Travaux / Maison",p:"2025",m:300,n:""},{id:11,d:"Fourniture",c:"Travaux / Maison",p:"2025",m:370,n:""},{id:12,d:"Date Figuig",c:"Figuig / Agriculture",p:"2024",m:900,n:""},{id:13,d:"Serrurier",c:"Travaux / Maison",p:"2025",m:600,n:""},{id:14,d:"Frais Avocat Mahassine",c:"Avocat / Juridique",p:"2025",m:500,n:""},{id:15,d:"Frais Avocat Beloutt",c:"Avocat / Juridique",p:"2025",m:15000,n:""},{id:16,d:"Avocat Mahassine cheque NP",c:"Avocat / Juridique",p:"2025",m:2300,n:""},{id:17,d:"Avocat Mahassine Ifragh Tirmidi",c:"Avocat / Juridique",p:"2025",m:2000,n:""},{id:18,d:"Frais Encaissement 2x cheque",c:"Divers",p:"2025",m:83.6,n:""},{id:19,d:"Frais plantation Figuig",c:"Figuig / Agriculture",p:"2025",m:1024,n:""},{id:20,d:"Peinture HAJAA",c:"Travaux / Maison",p:"2025",m:10000,n:""},{id:21,d:"Police TIRMIDI",c:"Avocat / Juridique",p:"2025",m:2500,n:""},{id:22,d:"Refrigerateur HAJAA",c:"Travaux / Maison",p:"2025",m:7500,n:""},{id:23,d:"Bureau du greffier",c:"Avocat / Juridique",p:"2025",m:500,n:""},{id:24,d:"Charge supplementaire",c:"Divers",p:"2025",m:200,n:""},{id:25,d:"Frais avocat MAHASSINE",c:"Avocat / Juridique",p:"2025",m:2500,n:""},{id:26,d:"Frais avocat MAHASSINE",c:"Avocat / Juridique",p:"2025",m:3000,n:""},{id:27,d:"Credit HAJAR",c:"Credits / Prets",p:"2025",m:5000,n:""},{id:28,d:"Fourniture Plomberie",c:"Travaux / Maison",p:"2025",m:1327,n:""},{id:29,d:"Location meuleuse",c:"Travaux / Maison",p:"2025",m:50,n:""},{id:30,d:"Main d'oeuvre Plomberie",c:"Travaux / Maison",p:"2025",m:2000,n:""},{id:31,d:"Chauffe-eau",c:"Travaux / Maison",p:"2025",m:1650,n:""},{id:32,d:"Marbre",c:"Travaux / Maison",p:"2025",m:1000,n:""},{id:33,d:"Main d'oeuvre",c:"Travaux / Maison",p:"2025",m:1300,n:""},{id:34,d:"2 plombiers",c:"Travaux / Maison",p:"2025",m:250,n:""},{id:35,d:"Frais Medecin HAJJA",c:"Medical",p:"2025",m:3500,n:""},{id:36,d:"Frais Avocat Mahassine HOUMAN",c:"Avocat / Juridique",p:"2025",m:1500,n:""},{id:37,d:"Reste credit Hajar",c:"Credits / Prets",p:"2025",m:1500,n:""},{id:38,d:"Date Figuig",c:"Figuig / Agriculture",p:"2025",m:1466,n:""},{id:39,d:"Charge non identifiee",c:"Divers",p:"2025",m:2500,n:"Verifier"},{id:40,d:"Huissier Ifragh + Charge",c:"Huissier",p:"2026",m:2868,n:""},{id:41,d:"Aid Kebir 2026",c:"Divers",p:"2026",m:6000,n:""},{id:42,d:"Taxe Habitation",c:"Divers",p:"2026",m:9000,n:""}];
+
+const INIT_ALIM=[{id:1,s:"Rachid Laamiri (cumul)",m:375000,t:"Echeance",p:"2023-2024"},{id:2,s:"Abderazzak Tirmidi (cumul)",m:90000,t:"Echeance",p:"2024-2025"},{id:3,s:"Cheque HOUMAN 2025",m:18120,t:"Cheque",p:"2025"},{id:4,s:"Cheque HOUMAN 2026",m:15660,t:"Cheque",p:"2026"}];
+
+const mkLaam = () => Array.from({length:16},(_,i)=>({id:i+1,e:`${MOIS[(7+i)%12]} ${2023+Math.floor((7+i)/12)}`,v:25000,p:i<15?25000:0}));
+const mkTirm = () => [{id:1,e:"Dec 2024",v:25000,p:25000},{id:2,e:"Jan 2025",v:15000,p:15000},{id:3,e:"Fev 2025",v:25000,p:0},{id:4,e:"Mar 2025",v:25000,p:0},{id:5,e:"Avr 2025",v:25000,p:0},{id:6,e:"Mai 2025",v:25000,p:0},{id:7,e:"2 cheques",v:50000,p:50000}];
+
+const fmt = n => new Intl.NumberFormat('fr-MA',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
+const fmtK = n => n>=1e6?`${(n/1e6).toFixed(1)}M`:n>=1e3?`${(n/1e3).toFixed(0)}K`:n.toFixed(0);
+
+// ── UI COMPONENTS ──
+function KPI({l,v,c,s}){return(<div style={{background:c,borderRadius:12,padding:"14px 16px",flex:1,minWidth:130}}><div style={{color:"rgba(255,255,255,0.8)",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5}}>{l}</div><div className="mono" style={{color:"#fff",fontSize:20,fontWeight:800,marginTop:4}}>{v}</div>{s&&<div style={{color:"rgba(255,255,255,0.7)",fontSize:10,marginTop:2}}>{s}</div>}</div>)}
+
+function Badge({t,c}){return<span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"22",color:c,border:`1px solid ${c}44`}}>{t}</span>}
+
+function Statut({p,v}){return p>=v&&v>0?<Badge t="PAYE" c="#22c55e"/>:p>0?<Badge t="PARTIEL" c="#f59e0b"/>:<Badge t="NP" c="#ef4444"/>}
+
+function Modal({show,onClose,title,children}){if(!show)return null;return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}><div style={{background:"#fff",borderRadius:16,padding:24,width:"92%",maxWidth:460,maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{fontSize:15,fontWeight:700}}>{title}</h3><button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>x</button></div>{children}</div></div>)}
+
+function Inp({l,v,onChange,type="text",opts,ph}){const st={width:"100%",padding:"8px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,outline:"none",boxSizing:"border-box"};return(<div style={{marginBottom:12}}><label style={{display:"block",fontSize:10,fontWeight:600,color:"#64748b",marginBottom:3,textTransform:"uppercase",letterSpacing:.5}}>{l}</label>{opts?<select value={v} onChange={e=>onChange(e.target.value)} style={{...st,background:"#fff"}}><option value="">Choisir...</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>:<input type={type} value={v} onChange={e=>onChange(type==="number"?parseFloat(e.target.value)||0:e.target.value)} placeholder={ph} style={st}/>}</div>)}
+
+function Btn({children,onClick,c="#2563eb",outline,sm,disabled}){return<button disabled={disabled} onClick={onClick} style={{padding:sm?"5px 10px":"9px 16px",fontSize:sm?11:12,fontWeight:600,border:outline?`2px solid ${c}`:"none",borderRadius:8,cursor:disabled?"not-allowed":"pointer",background:outline?"transparent":c,color:outline?c:"#fff",opacity:disabled?.5:1,fontFamily:"inherit"}}>{children}</button>}
+
+// ── DASHBOARD ──
+function Dash({ch,al,la,ti,lo}){
+  const tc=ch.reduce((s,x)=>s+x.m,0), ta=al.reduce((s,x)=>s+x.m,0), caisse=ta-tc;
+  const lp=la.reduce((s,x)=>s+x.p,0), tp=ti.reduce((s,x)=>s+x.p,0);
+  const lr=la.reduce((s,x)=>s+x.v,0)-lp, tr=ti.reduce((s,x)=>s+x.v,0)-tp;
+  const byCat=CATS.map(cat=>({cat,t:ch.filter(x=>x.c===cat).reduce((s,x)=>s+x.m,0)})).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
+  const mx=Math.max(...byCat.map(x=>x.t),1);
+  const loyP=lo.reduce((s,l)=>s+l.paiements.filter(p=>p.paye).reduce((ss,p)=>ss+p.montant,0),0);
+  const loyD=lo.reduce((s,l)=>s+l.paiements.filter(p=>!p.paye).length*l.loyer,0);
+
+  return(<div>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+      <KPI l="Alimentation" v={`${fmtK(ta)} MAD`} c="#16a34a" s="Total fonds"/>
+      <KPI l="Depenses" v={`${fmtK(tc)} MAD`} c="#dc2626" s={`${ch.length} lignes`}/>
+      <KPI l="Caisse" v={`${fmtK(caisse)} MAD`} c={caisse>=0?"#2563eb":"#991b1b"} s={caisse>=0?"Positif":"Deficit"}/>
+      <KPI l="Recouvrement" v={`${fmtK(lp+tp)} MAD`} c="#7c3aed" s={`Reste ${fmtK(lr+tr)}`}/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
+      <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0"}}>
+        <h4 style={{fontSize:12,fontWeight:700,color:"#475569",textTransform:"uppercase",marginBottom:10,letterSpacing:.5}}>Depenses par categorie</h4>
+        {byCat.map(({cat,t})=>(<div key={cat} style={{marginBottom:6}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+            <span style={{fontWeight:500}}>{cat}</span>
+            <span className="mono" style={{fontWeight:700}}>{fmt(t)}</span>
+          </div>
+          <div style={{background:"#e2e8f0",borderRadius:4,height:6,overflow:"hidden"}}>
+            <div style={{width:`${(t/mx)*100}%`,height:"100%",background:CAT_C[cat],borderRadius:4,transition:"width .5s"}}/>
+          </div>
+        </div>))}
+      </div>
+      <div style={{background:"#fff",borderRadius:12,padding:14,border:"1px solid #e2e8f0"}}>
+        <h4 style={{fontSize:12,fontWeight:700,color:"#475569",textTransform:"uppercase",marginBottom:10,letterSpacing:.5}}>Recouvrement</h4>
+        {[{n:"Rachid Laamiri",p:lp,v:la.reduce((s,x)=>s+x.v,0)},{n:"Abderazzak Tirmidi",p:tp,v:ti.reduce((s,x)=>s+x.v,0)}].map(r=>(
+          <div key={r.n} style={{marginBottom:10,padding:10,background:"#f8fafc",borderRadius:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:12,fontWeight:600}}>{r.n}</span>
+              <span style={{fontSize:12,fontWeight:700,color:r.p>=r.v?"#16a34a":"#f59e0b"}}>{r.v>0?Math.round(r.p/r.v*100):0}%</span>
+            </div>
+            <div style={{background:"#e2e8f0",borderRadius:4,height:6}}>
+              <div style={{width:`${r.v>0?(r.p/r.v)*100:0}%`,height:"100%",background:r.p>=r.v?"#22c55e":"#f59e0b",borderRadius:4}}/>
+            </div>
+          </div>
+        ))}
+        {lo.filter(l=>l.locataire).length>0&&<div style={{marginTop:10,padding:10,background:"#f8fafc",borderRadius:8}}>
+          <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>Loyers</div>
+          <div style={{display:"flex",gap:12,fontSize:11}}>
+            <span style={{color:"#16a34a",fontWeight:600}}>Percus: {fmt(loyP)}</span>
+            <span style={{color:"#ef4444",fontWeight:600}}>Dus: {fmt(loyD)}</span>
+          </div>
+        </div>}
+      </div>
+    </div>
+  </div>);
+}
+
+// ── CHARGES ──
+function Charges({data,setData,save}){
+  const [show,setShow]=useState(false),[fil,setFil]=useState(""),[q,setQ]=useState("");
+  const [form,setF]=useState({d:"",c:"",p:"",m:0,n:""}),[eid,setEid]=useState(null);
+  const list=data.filter(x=>(!fil||x.c===fil)&&(!q||x.d.toLowerCase().includes(q.toLowerCase())));
+  const tot=list.reduce((s,x)=>s+x.m,0);
+
+  const doSave=()=>{if(!form.d||!form.m)return;const u=eid?data.map(x=>x.id===eid?{...x,...form}:x):[...data,{...form,id:Date.now()}];setData(u);save(u);setF({d:"",c:"",p:"",m:0,n:""});setEid(null);setShow(false)};
+  const doEdit=x=>{setF({d:x.d,c:x.c,p:x.p,m:x.m,n:x.n||""});setEid(x.id);setShow(true)};
+  const doDel=id=>{const u=data.filter(x=>x.id!==id);setData(u);save(u)};
+
+  return(<div>
+    <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+      <Btn onClick={()=>{setEid(null);setF({d:"",c:"",p:"",m:0,n:""});setShow(true)}} c="#16a34a">+ Charge</Btn>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher..." style={{padding:"7px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,flex:1,minWidth:100,outline:"none"}}/>
+      <select value={fil} onChange={e=>setFil(e.target.value)} style={{padding:"7px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:11,background:"#fff"}}>
+        <option value="">Toutes</option>{CATS.map(c=><option key={c} value={c}>{c}</option>)}
+      </select>
+    </div>
+    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead><tr style={{background:"#1e293b"}}>{["#","Designation","Categorie","Periode","Montant",""].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+          <tbody>{list.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
+            <td style={{padding:"7px 10px",color:"#94a3b8"}}>{i+1}</td>
+            <td style={{padding:"7px 10px",fontWeight:500,maxWidth:200}}>{x.d}{x.n?<span style={{color:"#94a3b8",fontSize:9,marginLeft:4}}>({x.n})</span>:null}</td>
+            <td style={{padding:"7px 10px"}}><Badge t={x.c} c={CAT_C[x.c]||"#64748b"}/></td>
+            <td style={{padding:"7px 10px",color:"#64748b"}}>{x.p}</td>
+            <td className="mono" style={{padding:"7px 10px",textAlign:"right",fontWeight:600}}>{fmt(x.m)}</td>
+            <td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
+              <button onClick={()=>doEdit(x)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#3b82f6",padding:2}}>&#9998;</button>
+              <button onClick={()=>doDel(x.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ef4444",padding:2,marginLeft:2}}>&#10005;</button>
+            </td>
+          </tr>)}</tbody>
+          <tfoot><tr style={{background:"#1e293b"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700,fontSize:11}}>TOTAL ({list.length})</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td><td/></tr></tfoot>
+        </table>
+      </div>
+    </div>
+    <Modal show={show} onClose={()=>setShow(false)} title={eid?"Modifier":"Nouvelle charge"}>
+      <Inp l="Designation" v={form.d} onChange={v=>setF({...form,d:v})} ph="Ex: Frais avocat..."/>
+      <Inp l="Categorie" v={form.c} onChange={v=>setF({...form,c:v})} opts={CATS}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Inp l="Montant (MAD)" v={form.m} onChange={v=>setF({...form,m:v})} type="number"/>
+        <Inp l="Periode" v={form.p} onChange={v=>setF({...form,p:v})} ph="2025"/>
+      </div>
+      <Inp l="Notes" v={form.n} onChange={v=>setF({...form,n:v})} ph="Optionnel"/>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+        <Btn onClick={()=>setShow(false)} outline c="#64748b">Annuler</Btn>
+        <Btn onClick={doSave} disabled={!form.d||!form.m}>{eid?"Modifier":"Ajouter"}</Btn>
+      </div>
+    </Modal>
+  </div>);
+}
+
+// ── ALIMENTATION ──
+function Alim({data,setData,save}){
+  const [show,setShow]=useState(false),[form,setF]=useState({s:"",m:0,t:"",p:""}),[eid,setEid]=useState(null);
+  const tot=data.reduce((s,x)=>s+x.m,0);
+  const doSave=()=>{if(!form.s||!form.m)return;const u=eid?data.map(x=>x.id===eid?{...x,...form}:x):[...data,{...form,id:Date.now()}];setData(u);save(u);setF({s:"",m:0,t:"",p:""});setEid(null);setShow(false)};
+
+  return(<div>
+    <Btn onClick={()=>{setEid(null);setF({s:"",m:0,t:"",p:""});setShow(true)}} c="#16a34a">+ Alimentation</Btn>
+    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginTop:12}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+        <thead><tr style={{background:"#1e293b"}}>{["#","Source","Type","Periode","Montant",""].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+        <tbody>{data.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
+          <td style={{padding:"7px 10px",color:"#94a3b8"}}>{i+1}</td>
+          <td style={{padding:"7px 10px",fontWeight:500}}>{x.s}</td>
+          <td style={{padding:"7px 10px"}}><Badge t={x.t||"--"} c="#2563eb"/></td>
+          <td style={{padding:"7px 10px",color:"#64748b"}}>{x.p}</td>
+          <td className="mono" style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(x.m)}</td>
+          <td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
+            <button onClick={()=>{setF({s:x.s,m:x.m,t:x.t||"",p:x.p});setEid(x.id);setShow(true)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#3b82f6",padding:2}}>&#9998;</button>
+            <button onClick={()=>{const u=data.filter(y=>y.id!==x.id);setData(u);save(u)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ef4444",padding:2,marginLeft:2}}>&#10005;</button>
+          </td>
+        </tr>)}</tbody>
+        <tfoot><tr style={{background:"#16a34a"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700}}>TOTAL</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td><td/></tr></tfoot>
+      </table>
+    </div>
+    <Modal show={show} onClose={()=>setShow(false)} title={eid?"Modifier":"Nouvelle alimentation"}>
+      <Inp l="Source" v={form.s} onChange={v=>setF({...form,s:v})} ph="Ex: Cheque HOUMAN"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Inp l="Montant (MAD)" v={form.m} onChange={v=>setF({...form,m:v})} type="number"/>
+        <Inp l="Type" v={form.t} onChange={v=>setF({...form,t:v})} opts={["Echeance","Cheque","Virement","Espece","Autre"]}/>
+      </div>
+      <Inp l="Periode" v={form.p} onChange={v=>setF({...form,p:v})} ph="2025"/>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+        <Btn onClick={()=>setShow(false)} outline c="#64748b">Annuler</Btn>
+        <Btn onClick={doSave} disabled={!form.s||!form.m}>{eid?"Modifier":"Ajouter"}</Btn>
+      </div>
+    </Modal>
+  </div>);
+}
+
+// ── ECHEANCIER ──
+function Ech({title,data,setData,save,color}){
+  const [show,setShow]=useState(false),[form,setF]=useState({e:"",v:0,p:0});
+  const tv=data.reduce((s,x)=>s+x.v,0),tp=data.reduce((s,x)=>s+x.p,0),taux=tv>0?tp/tv:0;
+  const add=()=>{if(!form.e)return;setData(d=>{const u=[...d,{...form,id:Date.now()}];save(u);return u});setF({e:"",v:0,p:0});setShow(false)};
+  const upd=(id,val)=>{const u=data.map(x=>x.id===id?{...x,p:val}:x);setData(u);save(u)};
+
+  return(<div>
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      <div style={{background:color,borderRadius:10,padding:"8px 14px",color:"#fff"}}>
+        <div style={{fontSize:9,fontWeight:600,opacity:.8}}>TAUX</div>
+        <div style={{fontSize:18,fontWeight:800}}>{(taux*100).toFixed(1)}%</div>
+      </div>
+      <div style={{background:"#f8fafc",borderRadius:10,padding:"8px 14px",border:"1px solid #e2e8f0"}}>
+        <div style={{fontSize:9,fontWeight:600,color:"#64748b"}}>PAYE</div>
+        <div className="mono" style={{fontSize:16,fontWeight:700,color:"#16a34a"}}>{fmt(tp)}</div>
+      </div>
+      <div style={{background:"#f8fafc",borderRadius:10,padding:"8px 14px",border:"1px solid #e2e8f0"}}>
+        <div style={{fontSize:9,fontWeight:600,color:"#64748b"}}>RESTE</div>
+        <div className="mono" style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>{fmt(tv-tp)}</div>
+      </div>
+      <div style={{flex:1}}/><Btn onClick={()=>setShow(true)} sm>+ Echeance</Btn>
+    </div>
+    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+        <thead><tr style={{background:"#1e293b"}}>{["#","Echeance","Prevu","Paye","Reste","Statut"].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:["Prevu","Paye","Reste"].includes(h)?"right":"center",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+        <tbody>{data.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
+          <td style={{padding:"7px 10px",textAlign:"center",color:"#94a3b8"}}>{i+1}</td>
+          <td style={{padding:"7px 10px",textAlign:"center",fontWeight:500}}>{x.e}</td>
+          <td className="mono" style={{padding:"7px 10px",textAlign:"right"}}>{fmt(x.v)}</td>
+          <td style={{padding:"7px 10px",textAlign:"right"}}>
+            <input type="number" value={x.p} onChange={e=>upd(x.id,parseFloat(e.target.value)||0)} style={{width:85,padding:"3px 6px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:11,textAlign:"right",fontFamily:"'JetBrains Mono',monospace",background:x.p>=x.v&&x.v>0?"#dcfce7":"#fff",outline:"none"}}/>
+          </td>
+          <td className="mono" style={{padding:"7px 10px",textAlign:"right",color:x.v-x.p>0?"#ef4444":"#16a34a"}}>{fmt(x.v-x.p)}</td>
+          <td style={{padding:"7px 10px",textAlign:"center"}}><Statut p={x.p} v={x.v}/></td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    <Modal show={show} onClose={()=>setShow(false)} title="Nouvelle echeance">
+      <Inp l="Echeance" v={form.e} onChange={v=>setF({...form,e:v})} ph="Juin 2025"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Inp l="Prevu (MAD)" v={form.v} onChange={v=>setF({...form,v:v})} type="number"/>
+        <Inp l="Paye (MAD)" v={form.p} onChange={v=>setF({...form,p:v})} type="number"/>
+      </div>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+        <Btn onClick={()=>setShow(false)} outline c="#64748b">Annuler</Btn>
+        <Btn onClick={add} disabled={!form.e}>Ajouter</Btn>
+      </div>
+    </Modal>
+  </div>);
+}
+
+// ── LOYERS ──
+function Loyers({data,setData,save}){
+  const [showL,setShowL]=useState(false),[showP,setShowP]=useState(null);
+  const [form,setF]=useState({locataire:"",bien:"",loyer:0});
+  const [pf,setPf]=useState({mois:"",annee:2025,montant:0,paye:true});
+
+  const addL=()=>{if(!form.locataire)return;const u=[...data,{...form,id:Date.now(),paiements:[]}];setData(u);save(u);setF({locataire:"",bien:"",loyer:0});setShowL(false)};
+  const addP=lid=>{if(!pf.mois)return;const u=data.map(l=>l.id===lid?{...l,paiements:[...l.paiements,{...pf,id:Date.now()}]}:l);setData(u);save(u);setShowP(null)};
+  const togP=(lid,pid)=>{const u=data.map(l=>l.id===lid?{...l,paiements:l.paiements.map(p=>p.id===pid?{...p,paye:!p.paye}:p)}:l);setData(u);save(u)};
+  const delL=id=>{const u=data.filter(l=>l.id!==id);setData(u);save(u)};
+
+  return(<div>
+    <Btn onClick={()=>setShowL(true)} c="#16a34a">+ Locataire</Btn>
+    {data.filter(l=>l.locataire).map(l=>{
+      const percu=l.paiements.filter(p=>p.paye).reduce((s,p)=>s+p.montant,0);
+      const impayes=l.paiements.filter(p=>!p.paye).length;
+      return(<div key={l.id} style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",marginTop:12,overflow:"hidden"}}>
+        <div style={{background:"#1e293b",padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{l.locataire}</span><span style={{color:"#94a3b8",fontSize:11,marginLeft:8}}>{l.bien}</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span className="mono" style={{color:"#22c55e",fontSize:12,fontWeight:600}}>{fmt(l.loyer)}/mois</span>
+            <button onClick={()=>delL(l.id)} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>&#10005;</button>
+          </div>
+        </div>
+        <div style={{padding:10}}>
+          <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{background:"#dcfce7",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#15803d",fontWeight:600}}>Percu: {fmt(percu)}</span>
+            {impayes>0&&<span style={{background:"#fee2e2",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#dc2626",fontWeight:600}}>{impayes} impaye(s)</span>}
+            <div style={{flex:1}}/><Btn onClick={()=>{setShowP(l.id);setPf({mois:"",annee:2025,montant:l.loyer,paye:true})}} sm c="#2563eb">+ Mois</Btn>
+          </div>
+          {l.paiements.length>0?<table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+            <thead><tr style={{background:"#f1f5f9"}}>{["Mois","Montant","Statut"].map(h=><th key={h} style={{padding:"5px 8px",fontWeight:600,color:"#475569",textAlign:"left",fontSize:10}}>{h}</th>)}</tr></thead>
+            <tbody>{l.paiements.map(p=><tr key={p.id} style={{borderBottom:"1px solid #f1f5f9",cursor:"pointer"}} onClick={()=>togP(l.id,p.id)}>
+              <td style={{padding:"5px 8px"}}>{p.mois} {p.annee}</td>
+              <td className="mono" style={{padding:"5px 8px",fontWeight:500}}>{fmt(p.montant)}</td>
+              <td style={{padding:"5px 8px"}}>{p.paye?<Badge t="PAYE" c="#22c55e"/>:<Badge t="IMPAYE" c="#ef4444"/>}</td>
+            </tr>)}</tbody>
+          </table>:<p style={{color:"#94a3b8",fontSize:11,textAlign:"center",padding:8}}>Cliquer "+ Mois" pour enregistrer les paiements</p>}
+        </div>
+        <Modal show={showP===l.id} onClose={()=>setShowP(null)} title={`Loyer: ${l.locataire}`}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <Inp l="Mois" v={pf.mois} onChange={v=>setPf({...pf,mois:v})} opts={MOIS}/>
+            <Inp l="Annee" v={pf.annee} onChange={v=>setPf({...pf,annee:parseInt(v)||2025})} type="number"/>
+          </div>
+          <Inp l="Montant (MAD)" v={pf.montant} onChange={v=>setPf({...pf,montant:v})} type="number"/>
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,marginBottom:12,cursor:"pointer"}}>
+            <input type="checkbox" checked={pf.paye} onChange={e=>setPf({...pf,paye:e.target.checked})}/>Deja paye
+          </label>
+          <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+            <Btn onClick={()=>setShowP(null)} outline c="#64748b">Annuler</Btn>
+            <Btn onClick={()=>addP(l.id)} disabled={!pf.mois}>Ajouter</Btn>
+          </div>
+        </Modal>
+      </div>);
+    })}
+    {!data.filter(l=>l.locataire).length&&<div style={{textAlign:"center",padding:30,color:"#94a3b8",marginTop:12}}>
+      <div style={{fontSize:30,marginBottom:6}}>&#127968;</div>
+      <p style={{fontSize:13}}>Aucun locataire. Cliquer "+ Locataire" pour commencer.</p>
+    </div>}
+    <Modal show={showL} onClose={()=>setShowL(false)} title="Nouveau locataire">
+      <Inp l="Nom" v={form.locataire} onChange={v=>setF({...form,locataire:v})} ph="Mohamed Alami"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <Inp l="Bien / Adresse" v={form.bien} onChange={v=>setF({...form,bien:v})} ph="Appt Bakara"/>
+        <Inp l="Loyer mensuel (MAD)" v={form.loyer} onChange={v=>setF({...form,loyer:v})} type="number"/>
+      </div>
+      <div style={{display:"flex",gap:6,justifyContent:"flex-end",marginTop:6}}>
+        <Btn onClick={()=>setShowL(false)} outline c="#64748b">Annuler</Btn>
+        <Btn onClick={addL} disabled={!form.locataire}>Ajouter</Btn>
+      </div>
+    </Modal>
+  </div>);
+}
+
+// ── MAIN APP ──
+const TABS=[{k:"dash",l:"Dashboard",i:"◼"},{k:"ch",l:"Charges",i:"▼"},{k:"al",l:"Alimentation",i:"▲"},{k:"lo",l:"Loyers",i:"⌂"},{k:"la",l:"Laamiri",i:"●"},{k:"ti",l:"Tirmidi",i:"●"}];
+
+function App(){
+  const [tab,setTab]=useState("dash"),[loading,setLoading]=useState(true),[saved,setSaved]=useState(false);
+  const [ch,setCh]=useState([]),[al,setAl]=useState([]),[la,setLa]=useState([]),[ti,setTi]=useState([]),[lo,setLo]=useState([]);
+
+  useEffect(()=>{(async()=>{
+    const [c,a,l,t,o]=await Promise.all([loadData("charges",INIT_CHARGES),loadData("alim",INIT_ALIM),loadData("laamiri",mkLaam()),loadData("tirmidi",mkTirm()),loadData("loyers",[])]);
+    setCh(c);setAl(a);setLa(l);setTi(t);setLo(o);setLoading(false);
+  })()},[]);
+
+  const flash=useCallback(()=>{setSaved(true);setTimeout(()=>setSaved(false),1500)},[]);
+  const sC=d=>{saveData("charges",d);flash()};
+  const sA=d=>{saveData("alim",d);flash()};
+  const sL=d=>{saveData("laamiri",d);flash()};
+  const sT=d=>{saveData("tirmidi",d);flash()};
+  const sO=d=>{saveData("loyers",d);flash()};
+
+  const tc=ch.reduce((s,x)=>s+x.m,0),ta=al.reduce((s,x)=>s+x.m,0);
+
+  if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#64748b"}}>Chargement...</div>;
+
+  return(<div style={{background:"#f1f5f9",minHeight:"100vh"}}>
+    <div style={{background:"linear-gradient(135deg,#0f172a,#1e293b)",padding:"14px 16px",position:"sticky",top:0,zIndex:100}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:13}}>B</div>
+          <div><div style={{color:"#fff",fontSize:15,fontWeight:700}}>BAKARA</div><div style={{color:"#64748b",fontSize:9}}>Gestion financiere {storage.isOnline()?"● En ligne":"○ Local"}</div></div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {saved&&<span style={{color:"#22c55e",fontSize:10,fontWeight:600,animation:"fadeIn .3s"}}>Sauvegarde !</span>}
+          <div style={{background:"#334155",borderRadius:8,padding:"5px 10px",fontSize:10,color:"#94a3b8"}}>
+            Caisse: <span className="mono" style={{color:ta-tc>=0?"#22c55e":"#ef4444",fontWeight:700}}>{fmtK(ta-tc)} MAD</span>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:3,overflowX:"auto"}}>
+        {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"6px 12px",borderRadius:8,border:"none",cursor:"pointer",fontSize:11,fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",background:tab===t.k?"#3b82f6":"transparent",color:tab===t.k?"#fff":"#94a3b8"}}>{t.i} {t.l}</button>)}
+      </div>
+    </div>
+    <div style={{padding:"14px 16px",maxWidth:960,margin:"0 auto"}}>
+      {tab==="dash"&&<Dash ch={ch} al={al} la={la} ti={ti} lo={lo}/>}
+      {tab==="ch"&&<Charges data={ch} setData={setCh} save={sC}/>}
+      {tab==="al"&&<Alim data={al} setData={setAl} save={sA}/>}
+      {tab==="lo"&&<Loyers data={lo} setData={setLo} save={sO}/>}
+      {tab==="la"&&<Ech title="Laamiri" data={la} setData={setLa} save={sL} color="#2563eb"/>}
+      {tab==="ti"&&<Ech title="Tirmidi" data={ti} setData={setTi} save={sT} color="#dc2626"/>}
+    </div>
+  </div>);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
