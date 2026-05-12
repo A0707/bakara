@@ -63,20 +63,19 @@ window.BAKARA_CONFIG = {
 <script type="text/babel" data-type="module">
 const { useState, useEffect, useCallback, useRef } = React;
 
+// ── SUPABASE CLIENT (singleton, shared between Storage & Auth) ──
+const _cfg = window.BAKARA_CONFIG || {};
+const supabase = (_cfg.SUPABASE_URL && _cfg.SUPABASE_KEY)
+  ? (() => { try { return window.supabase.createClient(_cfg.SUPABASE_URL, _cfg.SUPABASE_KEY); } catch(e){ console.warn("Supabase init failed:",e); return null; } })()
+  : null;
+
 // ── STORAGE LAYER ──
 const DB_PREFIX = "bakara_";
 
 class Storage {
   constructor() {
-    const cfg = window.BAKARA_CONFIG || {};
-    this.supabase = null;
-    this.online = false;
-    if (cfg.SUPABASE_URL && cfg.SUPABASE_KEY) {
-      try {
-        this.supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY);
-        this.online = true;
-      } catch(e) { console.warn("Supabase init failed:", e); }
-    }
+    this.supabase = supabase;
+    this.online = !!supabase;
   }
 
   async get(key) {
@@ -138,6 +137,43 @@ function Inp({l,v,onChange,type="text",opts,ph}){const st={width:"100%",padding:
 
 function Btn({children,onClick,c="#2563eb",outline,sm,disabled}){return<button disabled={disabled} onClick={onClick} style={{padding:sm?"5px 10px":"9px 16px",fontSize:sm?11:12,fontWeight:600,border:outline?`2px solid ${c}`:"none",borderRadius:8,cursor:disabled?"not-allowed":"pointer",background:outline?"transparent":c,color:outline?c:"#fff",opacity:disabled?.5:1,fontFamily:"inherit"}}>{children}</button>}
 
+// ── LOGIN SCREEN ──
+function LoginScreen({onLogin}){
+  const [email,setEmail]=useState("");
+  const [pwd,setPwd]=useState("");
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+
+  const doLogin=async()=>{
+    if(!email||!pwd){setErr("Email et mot de passe requis");return}
+    setBusy(true);setErr("");
+    try {
+      const {data,error}=await supabase.auth.signInWithPassword({email:email.trim(),password:pwd});
+      if(error){setErr(error.message==="Invalid login credentials"?"Email ou mot de passe incorrect":error.message);setBusy(false);return}
+      onLogin(data.session);
+    } catch(e){setErr("Erreur de connexion: "+e.message);setBusy(false)}
+  };
+
+  const onKey=e=>{if(e.key==="Enter")doLogin()};
+
+  return(<div style={{minHeight:"100vh",background:"linear-gradient(135deg,#0f172a,#1e293b)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+    <div style={{background:"#fff",borderRadius:16,padding:"32px 28px",width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}}>
+      <div style={{textAlign:"center",marginBottom:22}}>
+        <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",margin:"0 auto 12px",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:26}}>B</div>
+        <h1 style={{fontSize:18,fontWeight:700,color:"#1e293b",margin:0}}>BAKARA</h1>
+        <p style={{fontSize:11,color:"#94a3b8",marginTop:4}}>Gestion financiere - Connexion</p>
+      </div>
+      <div onKeyDown={onKey}>
+        <Inp l="Email" v={email} onChange={setEmail} type="email" ph="email@exemple.com"/>
+        <Inp l="Mot de passe" v={pwd} onChange={setPwd} type="password" ph="********"/>
+      </div>
+      {err&&<div style={{background:"#fee2e2",color:"#dc2626",padding:"9px 12px",borderRadius:8,fontSize:11,marginBottom:12,border:"1px solid #fecaca"}}>{err}</div>}
+      <button onClick={doLogin} disabled={busy} style={{width:"100%",padding:"11px 16px",background:busy?"#94a3b8":"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:busy?"not-allowed":"pointer",fontFamily:"inherit",marginTop:4}}>{busy?"Connexion...":"Se connecter"}</button>
+      <p style={{fontSize:10,color:"#94a3b8",textAlign:"center",marginTop:18,lineHeight:1.5}}>Les comptes sont crees par l'administrateur.<br/>En cas d'oubli, contactez-le.</p>
+    </div>
+  </div>);
+}
+
 // ── DASHBOARD ──
 function Dash({ch,al,la,ti,lo}){
   const tc=ch.reduce((s,x)=>s+x.m,0), ta=al.reduce((s,x)=>s+x.m,0), caisse=ta-tc;
@@ -194,7 +230,7 @@ function Dash({ch,al,la,ti,lo}){
 }
 
 // ── CHARGES ──
-function Charges({data,setData,save}){
+function Charges({data,setData,save,ro}){
   const [show,setShow]=useState(false),[fil,setFil]=useState(""),[q,setQ]=useState("");
   const [form,setF]=useState({d:"",c:"",p:"",m:0,n:""}),[eid,setEid]=useState(null);
   const list=data.filter(x=>(!fil||x.c===fil)&&(!q||x.d.toLowerCase().includes(q.toLowerCase())));
@@ -202,11 +238,11 @@ function Charges({data,setData,save}){
 
   const doSave=()=>{if(!form.d||!form.m)return;const u=eid?data.map(x=>x.id===eid?{...x,...form}:x):[...data,{...form,id:Date.now()}];setData(u);save(u);setF({d:"",c:"",p:"",m:0,n:""});setEid(null);setShow(false)};
   const doEdit=x=>{setF({d:x.d,c:x.c,p:x.p,m:x.m,n:x.n||""});setEid(x.id);setShow(true)};
-  const doDel=id=>{const u=data.filter(x=>x.id!==id);setData(u);save(u)};
+  const doDel=id=>{if(!confirm("Supprimer cette charge ?"))return;const u=data.filter(x=>x.id!==id);setData(u);save(u)};
 
   return(<div>
     <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
-      <Btn onClick={()=>{setEid(null);setF({d:"",c:"",p:"",m:0,n:""});setShow(true)}} c="#16a34a">+ Charge</Btn>
+      {!ro&&<Btn onClick={()=>{setEid(null);setF({d:"",c:"",p:"",m:0,n:""});setShow(true)}} c="#16a34a">+ Charge</Btn>}
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Rechercher..." style={{padding:"7px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:12,flex:1,minWidth:100,outline:"none"}}/>
       <select value={fil} onChange={e=>setFil(e.target.value)} style={{padding:"7px 10px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:11,background:"#fff"}}>
         <option value="">Toutes</option>{CATS.map(c=><option key={c} value={c}>{c}</option>)}
@@ -215,19 +251,19 @@ function Charges({data,setData,save}){
     <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-          <thead><tr style={{background:"#1e293b"}}>{["#","Designation","Categorie","Periode","Montant",""].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+          <thead><tr style={{background:"#1e293b"}}>{["#","Designation","Categorie","Periode","Montant",...(ro?[]:[""])].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
           <tbody>{list.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
             <td style={{padding:"7px 10px",color:"#94a3b8"}}>{i+1}</td>
             <td style={{padding:"7px 10px",fontWeight:500,maxWidth:200}}>{x.d}{x.n?<span style={{color:"#94a3b8",fontSize:9,marginLeft:4}}>({x.n})</span>:null}</td>
             <td style={{padding:"7px 10px"}}><Badge t={x.c} c={CAT_C[x.c]||"#64748b"}/></td>
             <td style={{padding:"7px 10px",color:"#64748b"}}>{x.p}</td>
             <td className="mono" style={{padding:"7px 10px",textAlign:"right",fontWeight:600}}>{fmt(x.m)}</td>
-            <td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
+            {!ro&&<td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
               <button onClick={()=>doEdit(x)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#3b82f6",padding:2}}>&#9998;</button>
               <button onClick={()=>doDel(x.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ef4444",padding:2,marginLeft:2}}>&#10005;</button>
-            </td>
+            </td>}
           </tr>)}</tbody>
-          <tfoot><tr style={{background:"#1e293b"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700,fontSize:11}}>TOTAL ({list.length})</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td><td/></tr></tfoot>
+          <tfoot><tr style={{background:"#1e293b"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700,fontSize:11}}>TOTAL ({list.length})</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td>{!ro&&<td/>}</tr></tfoot>
         </table>
       </div>
     </div>
@@ -248,28 +284,28 @@ function Charges({data,setData,save}){
 }
 
 // ── ALIMENTATION ──
-function Alim({data,setData,save}){
+function Alim({data,setData,save,ro}){
   const [show,setShow]=useState(false),[form,setF]=useState({s:"",m:0,t:"",p:""}),[eid,setEid]=useState(null);
   const tot=data.reduce((s,x)=>s+x.m,0);
   const doSave=()=>{if(!form.s||!form.m)return;const u=eid?data.map(x=>x.id===eid?{...x,...form}:x):[...data,{...form,id:Date.now()}];setData(u);save(u);setF({s:"",m:0,t:"",p:""});setEid(null);setShow(false)};
 
   return(<div>
-    <Btn onClick={()=>{setEid(null);setF({s:"",m:0,t:"",p:""});setShow(true)}} c="#16a34a">+ Alimentation</Btn>
+    {!ro&&<Btn onClick={()=>{setEid(null);setF({s:"",m:0,t:"",p:""});setShow(true)}} c="#16a34a">+ Alimentation</Btn>}
     <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginTop:12}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-        <thead><tr style={{background:"#1e293b"}}>{["#","Source","Type","Periode","Montant",""].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+        <thead><tr style={{background:"#1e293b"}}>{["#","Source","Type","Periode","Montant",...(ro?[]:[""])].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
         <tbody>{data.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
           <td style={{padding:"7px 10px",color:"#94a3b8"}}>{i+1}</td>
           <td style={{padding:"7px 10px",fontWeight:500}}>{x.s}</td>
           <td style={{padding:"7px 10px"}}><Badge t={x.t||"--"} c="#2563eb"/></td>
           <td style={{padding:"7px 10px",color:"#64748b"}}>{x.p}</td>
           <td className="mono" style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(x.m)}</td>
-          <td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
+          {!ro&&<td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
             <button onClick={()=>{setF({s:x.s,m:x.m,t:x.t||"",p:x.p});setEid(x.id);setShow(true)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#3b82f6",padding:2}}>&#9998;</button>
-            <button onClick={()=>{const u=data.filter(y=>y.id!==x.id);setData(u);save(u)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ef4444",padding:2,marginLeft:2}}>&#10005;</button>
-          </td>
+            <button onClick={()=>{if(!confirm("Supprimer cette alimentation ?"))return;const u=data.filter(y=>y.id!==x.id);setData(u);save(u)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ef4444",padding:2,marginLeft:2}}>&#10005;</button>
+          </td>}
         </tr>)}</tbody>
-        <tfoot><tr style={{background:"#16a34a"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700}}>TOTAL</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td><td/></tr></tfoot>
+        <tfoot><tr style={{background:"#16a34a"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700}}>TOTAL</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td>{!ro&&<td/>}</tr></tfoot>
       </table>
     </div>
     <Modal show={show} onClose={()=>setShow(false)} title={eid?"Modifier":"Nouvelle alimentation"}>
@@ -288,7 +324,7 @@ function Alim({data,setData,save}){
 }
 
 // ── ECHEANCIER ──
-function Ech({title,data,setData,save,color}){
+function Ech({title,data,setData,save,color,ro}){
   const [show,setShow]=useState(false),[form,setF]=useState({e:"",v:0,p:0});
   const tv=data.reduce((s,x)=>s+x.v,0),tp=data.reduce((s,x)=>s+x.p,0),taux=tv>0?tp/tv:0;
   const add=()=>{if(!form.e)return;setData(d=>{const u=[...d,{...form,id:Date.now()}];save(u);return u});setF({e:"",v:0,p:0});setShow(false)};
@@ -308,7 +344,7 @@ function Ech({title,data,setData,save,color}){
         <div style={{fontSize:9,fontWeight:600,color:"#64748b"}}>RESTE</div>
         <div className="mono" style={{fontSize:16,fontWeight:700,color:"#ef4444"}}>{fmt(tv-tp)}</div>
       </div>
-      <div style={{flex:1}}/><Btn onClick={()=>setShow(true)} sm>+ Echeance</Btn>
+      <div style={{flex:1}}/>{!ro&&<Btn onClick={()=>setShow(true)} sm>+ Echeance</Btn>}
     </div>
     <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden"}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
@@ -318,7 +354,7 @@ function Ech({title,data,setData,save,color}){
           <td style={{padding:"7px 10px",textAlign:"center",fontWeight:500}}>{x.e}</td>
           <td className="mono" style={{padding:"7px 10px",textAlign:"right"}}>{fmt(x.v)}</td>
           <td style={{padding:"7px 10px",textAlign:"right"}}>
-            <input type="number" value={x.p} onChange={e=>upd(x.id,parseFloat(e.target.value)||0)} style={{width:85,padding:"3px 6px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:11,textAlign:"right",fontFamily:"'JetBrains Mono',monospace",background:x.p>=x.v&&x.v>0?"#dcfce7":"#fff",outline:"none"}}/>
+            {ro?<span className="mono" style={{fontWeight:600}}>{fmt(x.p)}</span>:<input type="number" value={x.p} onChange={e=>upd(x.id,parseFloat(e.target.value)||0)} style={{width:85,padding:"3px 6px",border:"1.5px solid #e2e8f0",borderRadius:6,fontSize:11,textAlign:"right",fontFamily:"'JetBrains Mono',monospace",background:x.p>=x.v&&x.v>0?"#dcfce7":"#fff",outline:"none"}}/>}
           </td>
           <td className="mono" style={{padding:"7px 10px",textAlign:"right",color:x.v-x.p>0?"#ef4444":"#16a34a"}}>{fmt(x.v-x.p)}</td>
           <td style={{padding:"7px 10px",textAlign:"center"}}><Statut p={x.p} v={x.v}/></td>
@@ -340,18 +376,18 @@ function Ech({title,data,setData,save,color}){
 }
 
 // ── LOYERS ──
-function Loyers({data,setData,save}){
+function Loyers({data,setData,save,ro}){
   const [showL,setShowL]=useState(false),[showP,setShowP]=useState(null);
   const [form,setF]=useState({locataire:"",bien:"",loyer:0});
   const [pf,setPf]=useState({mois:"",annee:2025,montant:0,paye:true});
 
   const addL=()=>{if(!form.locataire)return;const u=[...data,{...form,id:Date.now(),paiements:[]}];setData(u);save(u);setF({locataire:"",bien:"",loyer:0});setShowL(false)};
   const addP=lid=>{if(!pf.mois)return;const u=data.map(l=>l.id===lid?{...l,paiements:[...l.paiements,{...pf,id:Date.now()}]}:l);setData(u);save(u);setShowP(null)};
-  const togP=(lid,pid)=>{const u=data.map(l=>l.id===lid?{...l,paiements:l.paiements.map(p=>p.id===pid?{...p,paye:!p.paye}:p)}:l);setData(u);save(u)};
-  const delL=id=>{const u=data.filter(l=>l.id!==id);setData(u);save(u)};
+  const togP=(lid,pid)=>{if(ro)return;const u=data.map(l=>l.id===lid?{...l,paiements:l.paiements.map(p=>p.id===pid?{...p,paye:!p.paye}:p)}:l);setData(u);save(u)};
+  const delL=id=>{if(!confirm("Supprimer ce locataire et tout son historique ?"))return;const u=data.filter(l=>l.id!==id);setData(u);save(u)};
 
   return(<div>
-    <Btn onClick={()=>setShowL(true)} c="#16a34a">+ Locataire</Btn>
+    {!ro&&<Btn onClick={()=>setShowL(true)} c="#16a34a">+ Locataire</Btn>}
     {data.filter(l=>l.locataire).map(l=>{
       const percu=l.paiements.filter(p=>p.paye).reduce((s,p)=>s+p.montant,0);
       const impayes=l.paiements.filter(p=>!p.paye).length;
@@ -360,23 +396,23 @@ function Loyers({data,setData,save}){
           <div><span style={{color:"#fff",fontWeight:700,fontSize:13}}>{l.locataire}</span><span style={{color:"#94a3b8",fontSize:11,marginLeft:8}}>{l.bien}</span></div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span className="mono" style={{color:"#22c55e",fontSize:12,fontWeight:600}}>{fmt(l.loyer)}/mois</span>
-            <button onClick={()=>delL(l.id)} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>&#10005;</button>
+            {!ro&&<button onClick={()=>delL(l.id)} style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14}}>&#10005;</button>}
           </div>
         </div>
         <div style={{padding:10}}>
           <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap",alignItems:"center"}}>
             <span style={{background:"#dcfce7",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#15803d",fontWeight:600}}>Percu: {fmt(percu)}</span>
             {impayes>0&&<span style={{background:"#fee2e2",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#dc2626",fontWeight:600}}>{impayes} impaye(s)</span>}
-            <div style={{flex:1}}/><Btn onClick={()=>{setShowP(l.id);setPf({mois:"",annee:2025,montant:l.loyer,paye:true})}} sm c="#2563eb">+ Mois</Btn>
+            <div style={{flex:1}}/>{!ro&&<Btn onClick={()=>{setShowP(l.id);setPf({mois:"",annee:2025,montant:l.loyer,paye:true})}} sm c="#2563eb">+ Mois</Btn>}
           </div>
           {l.paiements.length>0?<table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
             <thead><tr style={{background:"#f1f5f9"}}>{["Mois","Montant","Statut"].map(h=><th key={h} style={{padding:"5px 8px",fontWeight:600,color:"#475569",textAlign:"left",fontSize:10}}>{h}</th>)}</tr></thead>
-            <tbody>{l.paiements.map(p=><tr key={p.id} style={{borderBottom:"1px solid #f1f5f9",cursor:"pointer"}} onClick={()=>togP(l.id,p.id)}>
+            <tbody>{l.paiements.map(p=><tr key={p.id} style={{borderBottom:"1px solid #f1f5f9",cursor:ro?"default":"pointer"}} onClick={()=>togP(l.id,p.id)}>
               <td style={{padding:"5px 8px"}}>{p.mois} {p.annee}</td>
               <td className="mono" style={{padding:"5px 8px",fontWeight:500}}>{fmt(p.montant)}</td>
               <td style={{padding:"5px 8px"}}>{p.paye?<Badge t="PAYE" c="#22c55e"/>:<Badge t="IMPAYE" c="#ef4444"/>}</td>
             </tr>)}</tbody>
-          </table>:<p style={{color:"#94a3b8",fontSize:11,textAlign:"center",padding:8}}>Cliquer "+ Mois" pour enregistrer les paiements</p>}
+          </table>:<p style={{color:"#94a3b8",fontSize:11,textAlign:"center",padding:8}}>{ro?"Aucun paiement enregistre":"Cliquer \"+ Mois\" pour enregistrer les paiements"}</p>}
         </div>
         <Modal show={showP===l.id} onClose={()=>setShowP(null)} title={`Loyer: ${l.locataire}`}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -396,7 +432,7 @@ function Loyers({data,setData,save}){
     })}
     {!data.filter(l=>l.locataire).length&&<div style={{textAlign:"center",padding:30,color:"#94a3b8",marginTop:12}}>
       <div style={{fontSize:30,marginBottom:6}}>&#127968;</div>
-      <p style={{fontSize:13}}>Aucun locataire. Cliquer "+ Locataire" pour commencer.</p>
+      <p style={{fontSize:13}}>{ro?"Aucun locataire enregistre.":"Aucun locataire. Cliquer \"+ Locataire\" pour commencer."}</p>
     </div>}
     <Modal show={showL} onClose={()=>setShowL(false)} title="Nouveau locataire">
       <Inp l="Nom" v={form.locataire} onChange={v=>setF({...form,locataire:v})} ph="Mohamed Alami"/>
@@ -418,11 +454,37 @@ const TABS=[{k:"dash",l:"Dashboard",i:"◼"},{k:"ch",l:"Charges",i:"▼"},{k:"al
 function App(){
   const [tab,setTab]=useState("dash"),[loading,setLoading]=useState(true),[saved,setSaved]=useState(false);
   const [ch,setCh]=useState([]),[al,setAl]=useState([]),[la,setLa]=useState([]),[ti,setTi]=useState([]),[lo,setLo]=useState([]);
+  const [session,setSession]=useState(null),[profile,setProfile]=useState(null),[authReady,setAuthReady]=useState(false);
 
-  useEffect(()=>{(async()=>{
-    const [c,a,l,t,o]=await Promise.all([loadData("charges",INIT_CHARGES),loadData("alim",INIT_ALIM),loadData("laamiri",mkLaam()),loadData("tirmidi",mkTirm()),loadData("loyers",[])]);
-    setCh(c);setAl(a);setLa(l);setTi(t);setLo(o);setLoading(false);
-  })()},[]);
+  // 1) Auth bootstrap: check existing session + subscribe to changes
+  useEffect(()=>{
+    if(!supabase){setAuthReady(true);return}
+    supabase.auth.getSession().then(({data})=>{setSession(data.session);setAuthReady(true)});
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>{
+      setSession(s);
+      if(!s){setProfile(null);setCh([]);setAl([]);setLa([]);setTi([]);setLo([])}
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  // 2) Load profile (role) when session changes
+  useEffect(()=>{
+    if(!session||!supabase){setProfile(null);return}
+    supabase.from('profiles').select('*').eq('id',session.user.id).single().then(({data,error})=>{
+      if(error)console.warn("Profile fetch error:",error.message);
+      setProfile(data||{role:'guest',email:session.user.email,id:session.user.id});
+    });
+  },[session]);
+
+  // 3) Load data: when authenticated (or when Supabase is not configured)
+  useEffect(()=>{
+    if(supabase&&!session){setLoading(false);return}
+    (async()=>{
+      setLoading(true);
+      const [c,a,l,t,o]=await Promise.all([loadData("charges",INIT_CHARGES),loadData("alim",INIT_ALIM),loadData("laamiri",mkLaam()),loadData("tirmidi",mkTirm()),loadData("loyers",[])]);
+      setCh(c);setAl(a);setLa(l);setTi(t);setLo(o);setLoading(false);
+    })();
+  },[session]);
 
   const flash=useCallback(()=>{setSaved(true);setTimeout(()=>setSaved(false),1500)},[]);
   const sC=d=>{saveData("charges",d);flash()};
@@ -431,22 +493,31 @@ function App(){
   const sT=d=>{saveData("tirmidi",d);flash()};
   const sO=d=>{saveData("loyers",d);flash()};
 
-  const tc=ch.reduce((s,x)=>s+x.m,0),ta=al.reduce((s,x)=>s+x.m,0);
+  const logout=async()=>{if(confirm("Se deconnecter ?"))await supabase.auth.signOut()};
 
-  if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#64748b"}}>Chargement...</div>;
+  const tc=ch.reduce((s,x)=>s+x.m,0),ta=al.reduce((s,x)=>s+x.m,0);
+  const ro=profile?profile.role==='guest':false;
+  const roleBadge=profile?{admin:{c:"#16a34a",l:"Admin"},family:{c:"#3b82f6",l:"Famille"},guest:{c:"#64748b",l:"Invite"}}[profile.role]||{c:"#64748b",l:profile.role}:null;
+
+  // Render gates
+  if(!authReady)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#64748b"}}>Initialisation...</div>;
+  if(supabase&&!session)return<LoginScreen onLogin={setSession}/>;
+  if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#64748b"}}>Chargement des donnees...</div>;
 
   return(<div style={{background:"#f1f5f9",minHeight:"100vh"}}>
     <div style={{background:"linear-gradient(135deg,#0f172a,#1e293b)",padding:"14px 16px",position:"sticky",top:0,zIndex:100}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8,gap:8,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:13}}>B</div>
           <div><div style={{color:"#fff",fontSize:15,fontWeight:700}}>BAKARA</div><div style={{color:"#64748b",fontSize:9}}>Gestion financiere {storage.isOnline()?"● En ligne":"○ Local"}</div></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           {saved&&<span style={{color:"#22c55e",fontSize:10,fontWeight:600,animation:"fadeIn .3s"}}>Sauvegarde !</span>}
           <div style={{background:"#334155",borderRadius:8,padding:"5px 10px",fontSize:10,color:"#94a3b8"}}>
             Caisse: <span className="mono" style={{color:ta-tc>=0?"#22c55e":"#ef4444",fontWeight:700}}>{fmtK(ta-tc)} MAD</span>
           </div>
+          {roleBadge&&<span title={profile.email} style={{background:roleBadge.c,color:"#fff",padding:"4px 9px",borderRadius:6,fontSize:9,fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>{roleBadge.l}</span>}
+          {session&&<button onClick={logout} title={"Se deconnecter ("+profile?.email+")"} style={{background:"#334155",color:"#fff",border:"none",borderRadius:6,padding:"5px 10px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>⏏ Logout</button>}
         </div>
       </div>
       <div style={{display:"flex",gap:3,overflowX:"auto"}}>
@@ -455,11 +526,11 @@ function App(){
     </div>
     <div style={{padding:"14px 16px",maxWidth:960,margin:"0 auto"}}>
       {tab==="dash"&&<Dash ch={ch} al={al} la={la} ti={ti} lo={lo}/>}
-      {tab==="ch"&&<Charges data={ch} setData={setCh} save={sC}/>}
-      {tab==="al"&&<Alim data={al} setData={setAl} save={sA}/>}
-      {tab==="lo"&&<Loyers data={lo} setData={setLo} save={sO}/>}
-      {tab==="la"&&<Ech title="Laamiri" data={la} setData={setLa} save={sL} color="#2563eb"/>}
-      {tab==="ti"&&<Ech title="Tirmidi" data={ti} setData={setTi} save={sT} color="#dc2626"/>}
+      {tab==="ch"&&<Charges data={ch} setData={setCh} save={sC} ro={ro}/>}
+      {tab==="al"&&<Alim data={al} setData={setAl} save={sA} ro={ro}/>}
+      {tab==="lo"&&<Loyers data={lo} setData={setLo} save={sO} ro={ro}/>}
+      {tab==="la"&&<Ech title="Laamiri" data={la} setData={setLa} save={sL} color="#2563eb" ro={ro}/>}
+      {tab==="ti"&&<Ech title="Tirmidi" data={ti} setData={setTi} save={sT} color="#dc2626" ro={ro}/>}
     </div>
   </div>);
 }
