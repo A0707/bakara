@@ -2,9 +2,16 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BAKARA">
+<meta name="mobile-web-app-capable" content="yes">
 <title>BAKARA - Gestion Financiere</title>
+<link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233b82f6'/><text x='8' y='24' font-size='22' fill='white' font-weight='bold'>B</text></svg>">
+<link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -34,20 +41,72 @@
     --blue: #3b82f6; --green: #16a34a; --red: #dc2626;
     --purple: #7c3aed; --orange: #f59e0b;
     --header: linear-gradient(135deg,#0f172a,#1e293b);
+    --safe-top: env(safe-area-inset-top, 0);
+    --safe-bottom: env(safe-area-inset-bottom, 0);
+    --safe-left: env(safe-area-inset-left, 0);
+    --safe-right: env(safe-area-inset-right, 0);
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI','Helvetica Neue',Arial,sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
-  input, select, button { font-family: inherit; }
-  input:focus, select:focus { border-color: var(--blue) !important; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
-  button:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); transition: all .15s; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { overscroll-behavior: contain; }
+  body { font-family: 'Segoe UI','Helvetica Neue',Arial,sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; padding-left: var(--safe-left); padding-right: var(--safe-right); }
+
+  /* Touch-friendly inputs (font-size 16px prevents iOS zoom on focus) */
+  input, select, textarea, button { font-family: inherit; }
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="number"], input[type="date"], select, textarea {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue) !important; outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+
+  /* Hover effects only on devices that actually support hover (not touch) */
+  @media (hover: hover) {
+    button:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); transition: all .15s; }
+    table tbody tr:hover { background: #f1f5f9 !important; }
+  }
   button { transition: all .15s; }
+  /* Active state for touch (replaces hover feedback) */
+  button:not(:disabled):active { transform: scale(0.97); filter: brightness(0.95); }
+
   ::-webkit-scrollbar { height: 6px; width: 6px; }
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
   @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  @keyframes fabIn { from { transform: scale(0) rotate(-90deg); } to { transform: scale(1) rotate(0); } }
   .mono { font-family: 'JetBrains Mono','Fira Code','Consolas',monospace; }
-  table tbody tr:hover { background: #f1f5f9 !important; }
+
+  /* FAB - Floating Action Button (mobile only) */
+  .fab {
+    display: none;
+    position: fixed;
+    bottom: calc(20px + var(--safe-bottom));
+    right: 20px;
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: #fff; border: none;
+    font-size: 32px; font-weight: 300; line-height: 1;
+    box-shadow: 0 6px 20px rgba(22,163,74,0.45);
+    cursor: pointer; z-index: 200;
+    align-items: center; justify-content: center;
+    animation: fabIn .3s ease-out;
+  }
+  .fab:active { transform: scale(0.92) !important; }
+
+  /* Mobile breakpoint */
+  @media (max-width: 640px) {
+    .fab { display: flex; }
+    .hero-caisse { padding: 20px 22px !important; border-radius: 14px !important; }
+    .hero-caisse-amount { font-size: 32px !important; }
+    .hero-caisse-icon { font-size: 18px !important; }
+    .modal-card { width: 95% !important; max-width: 95% !important; padding: 20px !important; }
+    .tab-btn { padding: 8px 12px !important; font-size: 11px !important; }
+    .header-bar { padding: 12px 14px !important; }
+    .logo-text { font-size: 14px !important; }
+  }
+  @media (max-width: 380px) {
+    .hero-caisse-amount { font-size: 26px !important; }
+  }
 </style>
 </head>
 <body>
@@ -132,7 +191,7 @@ const fmtK = n => n>=1e6?`${(n/1e6).toFixed(1)}M`:n>=1e3?`${(n/1e3).toFixed(0)}K
 function Badge({t,c}){return<span style={{display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:10,fontWeight:600,background:c+"22",color:c,border:`1px solid ${c}44`}}>{t}</span>}
 
 
-function Modal({show,onClose,title,children}){if(!show)return null;return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}} onClick={onClose}><div style={{background:"#fff",borderRadius:16,padding:24,width:"92%",maxWidth:460,maxHeight:"85vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{fontSize:15,fontWeight:700}}>{title}</h3><button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94a3b8"}}>x</button></div>{children}</div></div>)}
+function Modal({show,onClose,title,children}){if(!show)return null;return(<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:12}} onClick={onClose}><div className="modal-card" style={{background:"#fff",borderRadius:16,padding:24,width:"92%",maxWidth:460,maxHeight:"88vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{fontSize:16,fontWeight:700}}>{title}</h3><button onClick={onClose} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",color:"#94a3b8",width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",borderRadius:8}}>×</button></div>{children}</div></div>)}
 
 function Inp({l,v,onChange,type="text",opts,ph}){const st={width:"100%",padding:"8px 12px",border:"1.5px solid #e2e8f0",borderRadius:8,fontSize:13,outline:"none",boxSizing:"border-box"};return(<div style={{marginBottom:12}}><label style={{display:"block",fontSize:10,fontWeight:600,color:"#64748b",marginBottom:3,textTransform:"uppercase",letterSpacing:.5}}>{l}</label>{opts?<select value={v} onChange={e=>onChange(e.target.value)} style={{...st,background:"#fff"}}><option value="">Choisir...</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>:<input type={type} value={v} onChange={e=>onChange(type==="number"?parseFloat(e.target.value)||0:e.target.value)} placeholder={ph} style={st}/>}</div>)}
 
@@ -192,15 +251,15 @@ function Dash({ch,al}){
 
   return(<div>
     {/* HERO CAISSE */}
-    <div style={{background:caisse>=0?"linear-gradient(135deg,#1e40af 0%,#7c3aed 100%)":"linear-gradient(135deg,#991b1b 0%,#7c2d12 100%)",borderRadius:18,padding:"24px 28px",color:"#fff",marginBottom:16,boxShadow:"0 8px 24px rgba(59,130,246,0.25)",position:"relative",overflow:"hidden"}}>
+    <div className="hero-caisse" style={{background:caisse>=0?"linear-gradient(135deg,#1e40af 0%,#7c3aed 100%)":"linear-gradient(135deg,#991b1b 0%,#7c2d12 100%)",borderRadius:18,padding:"24px 28px",color:"#fff",marginBottom:16,boxShadow:"0 8px 24px rgba(59,130,246,0.25)",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.08)"}}/>
       <div style={{position:"absolute",bottom:-60,right:60,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,0.05)"}}/>
       <div style={{position:"relative",zIndex:1}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-          <span style={{fontSize:22}}>💰</span>
+          <span className="hero-caisse-icon" style={{fontSize:22}}>💰</span>
           <span style={{fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",opacity:.85}}>Caisse actuelle</span>
         </div>
-        <div className="mono" style={{fontSize:42,fontWeight:800,lineHeight:1.1,letterSpacing:-1,marginBottom:6}}>{fmt(caisse)} <span style={{fontSize:18,opacity:.7,fontWeight:600}}>MAD</span></div>
+        <div className="mono hero-caisse-amount" style={{fontSize:42,fontWeight:800,lineHeight:1.1,letterSpacing:-1,marginBottom:6}}>{fmt(caisse)} <span style={{fontSize:18,opacity:.7,fontWeight:600}}>MAD</span></div>
         <div style={{display:"flex",gap:18,flexWrap:"wrap",fontSize:11,opacity:.9,marginTop:8}}>
           <span>▲ Entrees: <span className="mono" style={{fontWeight:700}}>{fmtK(ta)}</span></span>
           <span>▼ Sorties: <span className="mono" style={{fontWeight:700}}>{fmtK(tc)}</span></span>
@@ -319,6 +378,7 @@ function Charges({data,setData,save,ro}){
         <Btn onClick={doSave} disabled={!form.d||!form.m}>{eid?"Modifier":"Ajouter"}</Btn>
       </div>
     </Modal>
+    {!ro&&<button className="fab" onClick={doAdd} aria-label="Nouvelle charge" title="Nouvelle charge">+</button>}
   </div>);
 }
 
@@ -327,25 +387,28 @@ function Alim({data,setData,save,ro}){
   const [show,setShow]=useState(false),[form,setF]=useState({s:"",m:0,t:"",p:""}),[eid,setEid]=useState(null);
   const tot=data.reduce((s,x)=>s+x.m,0);
   const doSave=()=>{if(!form.s||!form.m)return;const u=eid?data.map(x=>x.id===eid?{...x,...form}:x):[...data,{...form,id:Date.now()}];setData(u);save(u);setF({s:"",m:0,t:"",p:""});setEid(null);setShow(false)};
+  const doAdd=()=>{setEid(null);setF({s:"",m:0,t:"",p:""});setShow(true)};
 
   return(<div>
-    {!ro&&<Btn onClick={()=>{setEid(null);setF({s:"",m:0,t:"",p:""});setShow(true)}} c="#16a34a">+ Alimentation</Btn>}
-    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginTop:12}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-        <thead><tr style={{background:"#1e293b"}}>{["#","Source","Type","Periode","Montant",...(ro?[]:[""])].map(h=><th key={h} style={{padding:"9px 10px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
-        <tbody>{data.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
-          <td style={{padding:"7px 10px",color:"#94a3b8"}}>{i+1}</td>
-          <td style={{padding:"7px 10px",fontWeight:500}}>{x.s}</td>
-          <td style={{padding:"7px 10px"}}><Badge t={x.t||"--"} c="#2563eb"/></td>
-          <td style={{padding:"7px 10px",color:"#64748b"}}>{x.p}</td>
-          <td className="mono" style={{padding:"7px 10px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(x.m)}</td>
-          {!ro&&<td style={{padding:"7px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
-            <button onClick={()=>{setF({s:x.s,m:x.m,t:x.t||"",p:x.p});setEid(x.id);setShow(true)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#3b82f6",padding:2}}>&#9998;</button>
-            <button onClick={()=>{if(!confirm("Supprimer cette alimentation ?"))return;const u=data.filter(y=>y.id!==x.id);setData(u);save(u)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#ef4444",padding:2,marginLeft:2}}>&#10005;</button>
-          </td>}
-        </tr>)}</tbody>
-        <tfoot><tr style={{background:"#16a34a"}}><td colSpan={4} style={{padding:"9px 10px",color:"#fff",fontWeight:700}}>TOTAL</td><td className="mono" style={{padding:"9px 10px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td>{!ro&&<td/>}</tr></tfoot>
-      </table>
+    {!ro&&<Btn onClick={doAdd} c="#16a34a">+ Alimentation</Btn>}
+    <div style={{background:"#fff",borderRadius:12,border:"1px solid #e2e8f0",overflow:"hidden",marginTop:12,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <thead><tr style={{background:"#1e293b"}}>{["#","Source","Type","Periode","Montant",...(ro?[]:[""])].map(h=><th key={h} style={{padding:"10px 12px",color:"#fff",fontWeight:600,textAlign:h==="Montant"?"right":"left",fontSize:10,textTransform:"uppercase",letterSpacing:.5}}>{h}</th>)}</tr></thead>
+          <tbody>{data.map((x,i)=><tr key={x.id} style={{background:i%2?"#f8fafc":"#fff",borderBottom:"1px solid #f1f5f9"}}>
+            <td style={{padding:"8px 12px",color:"#94a3b8"}}>{i+1}</td>
+            <td style={{padding:"8px 12px",fontWeight:500}}>{x.s}</td>
+            <td style={{padding:"8px 12px"}}><Badge t={x.t||"--"} c="#2563eb"/></td>
+            <td style={{padding:"8px 12px",color:"#64748b"}}>{x.p}</td>
+            <td className="mono" style={{padding:"8px 12px",textAlign:"right",fontWeight:600,color:"#16a34a"}}>{fmt(x.m)}</td>
+            {!ro&&<td style={{padding:"8px 6px",textAlign:"right",whiteSpace:"nowrap"}}>
+              <button onClick={()=>{setF({s:x.s,m:x.m,t:x.t||"",p:x.p});setEid(x.id);setShow(true)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#3b82f6",padding:3}}>&#9998;</button>
+              <button onClick={()=>{if(!confirm("Supprimer cette alimentation ?"))return;const u=data.filter(y=>y.id!==x.id);setData(u);save(u)}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#ef4444",padding:3,marginLeft:2}}>&#10005;</button>
+            </td>}
+          </tr>)}</tbody>
+          <tfoot><tr style={{background:"#16a34a"}}><td colSpan={4} style={{padding:"10px 12px",color:"#fff",fontWeight:700}}>TOTAL</td><td className="mono" style={{padding:"10px 12px",textAlign:"right",color:"#fff",fontWeight:700,fontSize:13}}>{fmt(tot)}</td>{!ro&&<td/>}</tr></tfoot>
+        </table>
+      </div>
     </div>
     <Modal show={show} onClose={()=>setShow(false)} title={eid?"Modifier":"Nouvelle alimentation"}>
       <Inp l="Source" v={form.s} onChange={v=>setF({...form,s:v})} ph="Ex: Cheque HOUMAN"/>
@@ -359,6 +422,7 @@ function Alim({data,setData,save,ro}){
         <Btn onClick={doSave} disabled={!form.s||!form.m}>{eid?"Modifier":"Ajouter"}</Btn>
       </div>
     </Modal>
+    {!ro&&<button className="fab" onClick={doAdd} aria-label="Nouvelle alimentation" title="Nouvelle alimentation">+</button>}
   </div>);
 }
 
@@ -417,20 +481,20 @@ function App(){
   if(loading)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",color:"#64748b"}}>Chargement des donnees...</div>;
 
   return(<div style={{background:"var(--bg)",minHeight:"100vh"}}>
-    <div style={{background:"linear-gradient(135deg,#0f172a,#1e293b)",padding:"14px 16px",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}}>
+    <div className="header-bar" style={{background:"linear-gradient(135deg,#0f172a,#1e293b)",padding:"14px 16px",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,0.15)",paddingTop:"calc(14px + var(--safe-top))"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,gap:8,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:34,height:34,borderRadius:9,background:"linear-gradient(135deg,#3b82f6,#8b5cf6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:15,boxShadow:"0 2px 8px rgba(59,130,246,0.4)"}}>B</div>
-          <div><div style={{color:"#fff",fontSize:16,fontWeight:700,letterSpacing:.3}}>BAKARA</div><div style={{color:"#64748b",fontSize:9}}>Gestion financiere {storage.isOnline()?"● En ligne":"○ Local"}</div></div>
+          <div><div className="logo-text" style={{color:"#fff",fontSize:16,fontWeight:700,letterSpacing:.3}}>BAKARA</div><div style={{color:"#64748b",fontSize:9}}>Gestion financiere {storage.isOnline()?"● En ligne":"○ Local"}</div></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           {saved&&<span style={{color:"#22c55e",fontSize:10,fontWeight:600,animation:"fadeIn .3s"}}>✓ Sauvegarde</span>}
           {roleBadge&&<span title={profile.email} style={{background:roleBadge.c,color:"#fff",padding:"4px 10px",borderRadius:6,fontSize:9,fontWeight:700,letterSpacing:.5,textTransform:"uppercase"}}>{roleBadge.l}</span>}
-          {session&&<button onClick={logout} title={"Se deconnecter ("+(profile?.email||"")+")"} style={{background:"#334155",color:"#fff",border:"none",borderRadius:6,padding:"5px 11px",fontSize:10,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>⏏ Logout</button>}
+          {session&&<button onClick={logout} title={"Se deconnecter ("+(profile?.email||"")+")"} style={{background:"#334155",color:"#fff",border:"none",borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600,minHeight:32}}>⏏ Logout</button>}
         </div>
       </div>
       <div style={{display:"flex",gap:4,overflowX:"auto"}}>
-        {TABS.map(t=><button key={t.k} onClick={()=>setTab(t.k)} style={{padding:"7px 16px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",background:tab===t.k?"#3b82f6":"transparent",color:tab===t.k?"#fff":"#94a3b8",transition:"all .2s"}}>{t.i} {t.l}</button>)}
+        {TABS.map(t=><button key={t.k} className="tab-btn" onClick={()=>setTab(t.k)} style={{padding:"9px 18px",borderRadius:8,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",fontFamily:"inherit",background:tab===t.k?"#3b82f6":"transparent",color:tab===t.k?"#fff":"#94a3b8",transition:"all .2s",minHeight:38}}>{t.i} {t.l}</button>)}
       </div>
     </div>
     <div style={{padding:"16px",maxWidth:1000,margin:"0 auto"}}>
@@ -442,6 +506,13 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+
+// ── PWA: Service Worker registration ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed:', err));
+  });
+}
 </script>
 </body>
 </html>
