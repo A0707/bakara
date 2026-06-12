@@ -621,7 +621,7 @@ function Loyers({data,setData,save,ro,biens,setBiens,saveBiens}){
   const expectedYear=data.reduce((s,c)=>s+(c.rent||0)*12,0);
 
   const openPay=c=>{if(ro)return;const ex=c.pay&&c.pay[key(year,month)];
-    setPayForm({mode:ex?ex.mode:"espece",date:ex?ex.date:`${year}-${String(month+1).padStart(2,"0")}-05`,montant:c.rent});
+    setPayForm({mode:ex?ex.mode:"espece",date:ex?ex.date:`${year}-${String(month+1).padStart(2,"0")}-10`,montant:c.rent});
     setPayModal(c)};
   const confirmPay=()=>{const c=payModal;const u=data.map(x=>{if(x.id!==c.id)return x;const pay={...(x.pay||{})};pay[key(year,month)]={date:payForm.date,mode:payForm.mode};return{...x,pay}});setData(u);save(u);setPayModal(null)};
   const cancelPay=c=>{if(ro)return;if(!confirm("Annuler le paiement de "+c.name+" pour "+MOIS12[month]+" "+year+" ?"))return;const u=data.map(x=>{if(x.id!==c.id)return x;const pay={...(x.pay||{})};delete pay[key(year,month)];return{...x,pay}});setData(u);save(u)};
