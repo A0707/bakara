@@ -177,7 +177,7 @@ async function loadData(key, fallback) {
     if(l.pay) return {...l, bienId: l.bienId!==undefined?l.bienId:null}; // déjà au nouveau format
     // ancien format : months={mois:montant ou true} → pay={"2025-mois":{date,mode}}
     const pay={};
-    Object.keys(l.months||{}).forEach(k=>{ if(l.months[k]){ const mi=+k; pay["2025-"+mi]={date:"2025-"+String(mi+1).padStart(2,"0")+"-05",mode:"espece"}; } });
+    Object.keys(l.months||{}).forEach(k=>{ if(l.months[k]){ const mi=+k; pay["2025-"+mi]={date:"2025-"+String(mi+1).padStart(2,"0")+"-10",mode:"espece"}; } });
     return {...l, pay, months:undefined, bienId: l.bienId!==undefined?l.bienId:null};
   });
   if(key==="biens") return d.map(b=>({
@@ -216,7 +216,7 @@ const INIT_BIENS=_BIENS_RAW.map((b,i)=>({id:i+1,num:i+1,nom:b.t.split("/")[0]+" 
 const _CUR_YEAR=2025; // année des données initiales
 const _mkLoc=(id,name,rent,paidMonths,bienId)=>{
   const pay={};
-  paidMonths.forEach(m=>{ pay[_CUR_YEAR+"-"+m]={date:_CUR_YEAR+"-"+String(m+1).padStart(2,"0")+"-05",mode:"espece"}; });
+  paidMonths.forEach(m=>{ pay[_CUR_YEAR+"-"+m]={date:_CUR_YEAR+"-"+String(m+1).padStart(2,"0")+"-10",mode:"espece"}; });
   return {id,name,rent,pay,bienId:bienId||null};
 };
 const INIT_LOCS=[
@@ -596,8 +596,8 @@ function Biens({data,setData,save,ro,locs,setLocs,saveLocs}){
 // ── LOYERS : gestion par mois & année, validation paiement (mode + date) ──
 function Loyers({data,setData,save,ro,biens,setBiens,saveBiens}){
   const now=new Date();
-  const [year,setYear]=useState(2025);
-  const [month,setMonth]=useState(now.getFullYear()===2025?now.getMonth():0);
+  const [year,setYear]=useState(now.getFullYear());
+  const [month,setMonth]=useState(now.getMonth());
   const [payModal,setPayModal]=useState(null); // {loc} en cours de validation
   const [payForm,setPayForm]=useState({mode:"espece",date:"",montant:0});
   const [edit,setEdit]=useState(false),[form,setF]=useState({name:"",rent:0,bienId:""}),[eid,setEid]=useState(null);
@@ -608,7 +608,7 @@ function Loyers({data,setData,save,ro,biens,setBiens,saveBiens}){
   const bienName=id=>{const b=biens.find(x=>x.id===id);return b?b.nom:null};
 
   // années présentes dans les données + année courante
-  const years=(()=>{const set=new Set([2025,2026]);data.forEach(c=>Object.keys(c.pay||{}).forEach(k=>set.add(+k.split("-")[0])));return[...set].sort((a,b)=>b-a)})();
+  const years=(()=>{const set=new Set([2025,2026,now.getFullYear()]);data.forEach(c=>Object.keys(c.pay||{}).forEach(k=>set.add(+k.split("-")[0])));return[...set].sort((a,b)=>b-a)})();
 
   // stats du mois sélectionné
   const moisLocs=data; // tous les locataires concernés
