@@ -1,6 +1,6 @@
 // BAKARA Service Worker
 // Cache strategy: stale-while-revalidate for assets, network-first for Supabase
-const CACHE = 'bakara-v1';
+const CACHE = 'bakara-v7';
 const SHELL = [
   '/',
   '/index.html',
