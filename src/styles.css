@@ -1,0 +1,183 @@
+:root {
+  --bg: #f8fafc;
+  --card: #fff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text2: #475569;
+  --text3: #94a3b8;
+  --blue: #3b82f6;
+  --green: #16a34a;
+  --red: #dc2626;
+  --purple: #7c3aed;
+  --orange: #f59e0b;
+  --header: linear-gradient(135deg, #0f172a, #1e293b);
+  --safe-top: env(safe-area-inset-top, 0);
+  --safe-bottom: env(safe-area-inset-bottom, 0);
+  --safe-left: env(safe-area-inset-left, 0);
+  --safe-right: env(safe-area-inset-right, 0);
+}
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+html,
+body {
+  overscroll-behavior: contain;
+}
+body {
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Touch-friendly inputs (font-size 16px prevents iOS zoom on focus) */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='date'],
+select,
+textarea {
+  font-size: 16px !important;
+  min-height: 44px;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--blue) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Hover effects only on devices that actually support hover (not touch) */
+@media (hover: hover) {
+  button:not(:disabled):hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    transition: all 0.15s;
+  }
+  table tbody tr:hover {
+    background: #f1f5f9 !important;
+  }
+}
+button {
+  transition: all 0.15s;
+}
+/* Active state for touch (replaces hover feedback) */
+button:not(:disabled):active {
+  transform: scale(0.97);
+  filter: brightness(0.95);
+}
+
+::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes fabIn {
+  from {
+    transform: scale(0) rotate(-90deg);
+  }
+  to {
+    transform: scale(1) rotate(0);
+  }
+}
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* FAB - Floating Action Button (mobile only) */
+.fab {
+  display: none;
+  position: fixed;
+  bottom: calc(20px + var(--safe-bottom));
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  border: none;
+  font-size: 32px;
+  font-weight: 300;
+  line-height: 1;
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.45);
+  cursor: pointer;
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  animation: fabIn 0.3s ease-out;
+}
+.fab:active {
+  transform: scale(0.92) !important;
+}
+
+/* Mobile breakpoint */
+@media (max-width: 640px) {
+  .fab {
+    display: flex;
+  }
+  .hero-caisse {
+    padding: 20px 22px !important;
+    border-radius: 14px !important;
+  }
+  .hero-caisse-amount {
+    font-size: 32px !important;
+  }
+  .hero-caisse-icon {
+    font-size: 18px !important;
+  }
+  .modal-card {
+    width: 95% !important;
+    max-width: 95% !important;
+    padding: 20px !important;
+  }
+  .tab-btn {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+  }
+  .header-bar {
+    padding: 12px 14px !important;
+  }
+  .logo-text {
+    font-size: 14px !important;
+  }
+}
+@media (max-width: 380px) {
+  .hero-caisse-amount {
+    font-size: 26px !important;
+  }
+}
