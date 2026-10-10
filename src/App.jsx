@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useFinance } from './hooks/useFinance';
+import { usePwa } from './hooks/usePwa';
+import PwaInstall, { OfflineNotice } from './components/PwaInstall';
 import { supabase } from './lib/supabase';
 import Icon from './components/Icon';
 import Login from './pages/Login';
@@ -47,6 +49,7 @@ const tabs = [
   },
 ];
 export default function App() {
+  const pwa = usePwa();
   const auth = useAuth();
   const finance = useFinance(
     auth.ready && (!supabase || !!auth.session),
@@ -64,7 +67,7 @@ export default function App() {
     data: finance.data[key],
     setData: (d) => finance.update(key, d),
     save: (d) => finance.save(key, d),
-    ro: auth.readOnly || finance.status === 'error',
+    ro: auth.readOnly || finance.status === 'error' || (!!supabase && !pwa.online),
   });
   async function logout() {
     if (!confirm('Se déconnecter de Bakara ?')) return;
@@ -96,7 +99,7 @@ export default function App() {
         <p>Ouverture de votre espace…</p>
       </div>
     );
-  if (supabase && !auth.session) return <Login />;
+  if (supabase && !auth.session) return <Login pwa={pwa} />;
   const date = new Intl.DateTimeFormat('fr-MA', {
     day: 'numeric',
     month: 'long',
@@ -205,6 +208,16 @@ export default function App() {
           </div>
         </header>
         <main id="main" className="main-content">
+          {!pwa.online && !!supabase && <OfflineNotice />}
+          {!pwa.installed && (
+            <div className="pwa-entry">
+              <div>
+                <strong>Bakara sur votre téléphone</strong>
+                <span>Ajoutez votre espace à l’écran d’accueil.</span>
+              </div>
+              <PwaInstall pwa={pwa} />
+            </div>
+          )}
           <div className="page-intro">
             <div>
               <span className="eyebrow">

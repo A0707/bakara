@@ -55,6 +55,12 @@ Les tests de connexion simulée demandent une seconde instance sans `VITE_LOCAL_
 
 Après compilation, `npm run preview` puis `npm run test:pwa` vérifient les assets de production et le chargement hors connexion de la page de connexion.
 
+## Installation mobile
+
+Le bouton « Installer Bakara » est disponible sur la connexion et dans l’espace familial. Sur les navigateurs compatibles, il ouvre la demande d’installation. Sinon, une aide explique comment ajouter Bakara à l’écran d’accueil : menu d’installation de Chrome sur Android, ou menu de partage puis « Sur l’écran d’accueil » dans Safari sur iPhone. Le bouton disparaît une fois l’installation détectée ou lorsque l’application est ouverte en mode autonome.
+
+La PWA doit être servie en HTTPS (ou localhost en développement). Le build génère un service worker avec les fichiers JavaScript et CSS compilés et un cache versionné par build. Après une première ouverture en ligne et l’installation du service worker, l’interface peut s’ouvrir hors connexion sans rechargement préalable. Les données financières et les API Supabase ne sont pas mises en cache. Un message signale l’absence de réseau ; la connexion et les modifications distantes sont bloquées tant que le téléphone est hors connexion. Il ne s’agit pas d’une synchronisation de données hors ligne.
+
 ## Déploiement
 
 Vercel exécute `npm run build` et publie `dist/`. Les fichiers statiques restent exclus de la réécriture SPA. Le service worker ne met en cache que les fichiers de l’application et les assets du même domaine ; les API et sessions ne sont jamais mises en cache. Une mise à jour attend la fermeture des anciens onglets pour éviter d’interrompre une saisie. La disponibilité hors connexion de l’interface ne garantit pas une session Supabase ni l’accès aux données financières.

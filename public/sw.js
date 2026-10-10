@@ -1,6 +1,14 @@
 // Cache only the app shell and immutable same-origin build assets.
-const CACHE = 'bakara-v10';
-const SHELL = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'bakara-pwa-development';
+const BUILD_ASSETS = [];
+const SHELL = [
+  '/',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable.png',
+  ...BUILD_ASSETS,
+];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
   // Wait for existing tabs to close so an update cannot interrupt an edit.
@@ -36,7 +44,9 @@ self.addEventListener('fetch', (event) => {
     );
   } else if (url.pathname.startsWith('/assets/') || SHELL.includes(url.pathname)) {
     event.respondWith(
-      caches.match(event.request).then(
+      // Static build assets are identical for every same-origin request. Module
+      // requests may carry an Origin header absent from the precache request.
+      caches.match(event.request, { ignoreVary: true }).then(
         (cached) =>
           cached ||
           fetch(event.request).then((response) => {

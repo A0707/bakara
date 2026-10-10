@@ -1612,6 +1612,79 @@ svg {
   margin-left: 0;
   line-height: 1;
 }
+.pwa-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 22px;
+}
+.pwa-entry strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pwa-entry span {
+  display: block;
+  font-size: 11px;
+  color: #78877c;
+  margin-top: 3px;
+}
+.pwa-install {
+  font-size: 11px;
+  white-space: nowrap;
+}
+.login-install {
+  margin-top: 20px;
+}
+.login-install .pwa-install {
+  width: 100%;
+}
+.install-intro {
+  font-size: 14px;
+  color: #607366;
+  margin-bottom: 20px;
+}
+.install-steps {
+  padding-left: 22px;
+  color: #344e3d;
+  font-size: 14px;
+}
+.install-steps li {
+  padding-left: 5px;
+  margin-bottom: 14px;
+}
+.install-footnote {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #6f7e73;
+  margin: 20px 0;
+}
+.offline-notice {
+  background: #fff7e9;
+  border-color: #eedaba;
+  color: #88652c;
+}
+@media (max-width: 480px) {
+  .pwa-entry {
+    padding: 12px;
+  }
+  .pwa-entry strong {
+    font-size: 11px;
+  }
+  .pwa-entry span {
+    font-size: 10px;
+  }
+  .pwa-install {
+    padding: 8px 10px;
+    font-size: 10px;
+    min-height: 44px;
+  }
+}
 .legend-row strong,
 .legend-name,
 .recent-description strong,

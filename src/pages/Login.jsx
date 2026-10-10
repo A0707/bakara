@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Inp } from '../components/UI';
 import Icon from '../components/Icon';
-export default function Login() {
+import PwaInstall, { OfflineNotice } from '../components/PwaInstall';
+export default function Login({ pwa }) {
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   async function submit(e) {
     e.preventDefault();
-    if (busy) return;
+    if (busy || !pwa.online) return;
     setError('');
     setBusy(true);
     try {
@@ -66,6 +67,7 @@ export default function Login() {
           <span className="eyebrow">VOTRE ESPACE BAKARA</span>
           <h2>Heureux de vous retrouver.</h2>
           <p>Connectez-vous pour retrouver votre vue d’ensemble.</p>
+          {!pwa.online && <OfflineNotice />}
           <Inp l="Adresse email" v={email} onChange={setEmail} type="email" ph="vous@exemple.com" />
           <Inp
             l="Mot de passe"
@@ -79,7 +81,10 @@ export default function Login() {
               {error}
             </div>
           )}
-          <button className="button login-submit" disabled={busy || !email.trim() || !password}>
+          <button
+            className="button login-submit"
+            disabled={busy || !email.trim() || !password || !pwa.online}
+          >
             {busy ? 'Connexion en cours…' : 'Se connecter'}
             <Icon name="arrow" />
           </button>
@@ -90,6 +95,9 @@ export default function Login() {
               <br />
               Contactez-le si vous avez besoin d’aide.
             </span>
+          </div>
+          <div className="login-install">
+            <PwaInstall pwa={pwa} />
           </div>
         </form>
         <span className="login-footer">Bakara · Gestion financière familiale</span>
