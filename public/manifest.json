@@ -1,15 +1,16 @@
 {
-  "name": "BAKARA - Gestion Financiere",
+  "name": "Bakara — Finances & patrimoine",
   "short_name": "BAKARA",
-  "description": "Gestion financiere familiale - Suivi caisse, charges, alimentation",
+  "id": "/",
+  "description": "Gestion des finances familiales, loyers et patrimoine immobilier",
   "lang": "fr",
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "prefer_related_applications": false,
+  "background_color": "#f7f8fc",
+  "theme_color": "#4355d4",
   "categories": ["finance", "productivity"],
   "icons": [
     {
