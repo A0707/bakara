@@ -12,13 +12,17 @@ export function createFinanceRepository(client, local) {
           .in('id', COLLECTIONS)
           .abortSignal(AbortSignal.timeout(7000));
         if (error) throw error;
-        return Object.fromEntries(
+        const snapshot = Object.fromEntries(
           COLLECTIONS.map((key) => {
             const rows = data?.find((row) => row.id === key)?.data ?? [];
             if (!Array.isArray(rows)) throw new Error('Format de données invalide.');
             return [key, migrateData(key, rows, [])];
           }),
         );
+        return {
+          ...snapshot,
+          _missingCollections: COLLECTIONS.filter((key) => !data?.some((row) => row.id === key)),
+        };
       }
       return Object.fromEntries(
         COLLECTIONS.map((key) => {

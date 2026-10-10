@@ -37,6 +37,7 @@ export default function Ledger({ kind, data, mutate, readOnly, initialAction }) 
     [query, setQuery] = useState(''),
     [filter, setFilter] = useState('');
   const rows = data[kind];
+  const unavailable = data._missingCollections?.includes(kind);
   const list = rows
     .filter(
       (row) =>
@@ -99,17 +100,39 @@ export default function Ledger({ kind, data, mutate, readOnly, initialAction }) 
     );
   return (
     <div className="page-stack">
+      {unavailable && (
+        <div className="notice" role="status">
+          L’historique des {expense ? 'charges' : 'entrées de caisse'} n’est pas disponible dans
+          cette source. Aucun exemple ne le remplace.
+        </div>
+      )}
       <div className="stats-grid">
         <Stat
           label={expense ? 'Dépenses cumulées' : 'Entrées cumulées'}
-          value={<Money value={sum(rows)} />}
+          value={
+            unavailable ? (
+              <span className="unavailable-stat">Non disponible</span>
+            ) : (
+              <Money value={sum(rows)} />
+            )
+          }
           icon={expense ? 'down' : 'up'}
           tone={expense ? 'rose' : 'mint'}
-          detail={`${rows.length} opération${rows.length > 1 ? 's' : ''}`}
+          detail={
+            unavailable
+              ? 'Source à compléter'
+              : `${rows.length} opération${rows.length > 1 ? 's' : ''}`
+          }
         />
         <Stat
           label="Résultat de la recherche"
-          value={<Money value={sum(list)} />}
+          value={
+            unavailable ? (
+              <span className="unavailable-stat">Non disponible</span>
+            ) : (
+              <Money value={sum(list)} />
+            )
+          }
           icon="search"
           tone="blue"
           detail={`${list.length} opération${list.length > 1 ? 's' : ''} affichée${list.length > 1 ? 's' : ''}`}

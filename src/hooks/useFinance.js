@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, LOCAL_MODE } from '../lib/supabase';
 import { createFinanceRepository, emptySnapshot } from '../lib/financeRepository';
 const repository = createFinanceRepository(supabase, window.localStorage);
 export function useFinance(enabled, identity) {
@@ -22,10 +22,7 @@ export function useFinance(enabled, identity) {
     if (!enabled) return;
     (async () => {
       try {
-        const fallback =
-          import.meta.env.VITE_LOCAL_MODE === 'true'
-            ? (await import('#seed-data')).default
-            : emptySnapshot();
+        const fallback = LOCAL_MODE ? (await import('#seed-data')).default : emptySnapshot();
         const loaded = await repository.load(fallback);
         if (token === generation.current) {
           snapshot.current = loaded;
@@ -51,7 +48,13 @@ export function useFinance(enabled, identity) {
     try {
       await repository.save(patch);
       if (token === generation.current) {
-        snapshot.current = { ...snapshot.current, ...patch };
+        snapshot.current = {
+          ...snapshot.current,
+          ...patch,
+          _missingCollections: (snapshot.current._missingCollections || []).filter(
+            (key) => !Object.hasOwn(patch, key),
+          ),
+        };
         setData(snapshot.current);
         setStatus('saved');
       }

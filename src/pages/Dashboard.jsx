@@ -1,12 +1,11 @@
 import React from 'react';
 import { Button, Stat, Money, Badge, PanelHeader, EmptyState } from '../components/UI';
 import Icon from '../components/Icon';
-import { sum, rentMetrics, categoryTotals } from '../lib/metrics';
+import { cashMetrics, rentMetrics, categoryTotals } from '../lib/metrics';
 const colors = ['#5263dc', '#9b74d6', '#40a487', '#edaa48', '#d56488', '#569cc0', '#9e927c'];
 export default function Dashboard({ data, navigate, readOnly }) {
-  const income = sum(data.alim),
-    expenses = sum(data.charges),
-    balance = income - expenses;
+  const { income, expenses, balance } = cashMetrics(data);
+  const known = balance !== null;
   const rents = rentMetrics(data.locataires),
     categories = categoryTotals(data.charges);
   const occupied = data.biens.filter((b) => b.locataireId != null).length;
@@ -26,6 +25,12 @@ export default function Dashboard({ data, navigate, readOnly }) {
     : '#e8ecf6 0% 100%';
   return (
     <div className="page-stack">
+      {!known && (
+        <div className="notice" role="status">
+          Le solde est indisponible : une partie de l’historique financier n’est pas présente dans
+          cette source de données.
+        </div>
+      )}
       <div className="dashboard-hero-grid">
         <section className={`balance-card ${balance < 0 ? 'negative' : ''}`}>
           <div className="balance-top">
@@ -38,13 +43,21 @@ export default function Dashboard({ data, navigate, readOnly }) {
             </span>
           </div>
           <div className="balance-number">
-            <Money value={balance} />
+            {known ? (
+              <Money value={balance} />
+            ) : (
+              <span className="unavailable-value">Solde indisponible</span>
+            )}
           </div>
-          <p>Une vision claire de vos finances familiales.</p>
+          <p>
+            {known
+              ? 'Une vision claire de vos finances familiales.'
+              : 'Complétez les sources avant de calculer le solde.'}
+          </p>
           <div className="balance-footer">
             <span>
-              <Icon name={balance >= 0 ? 'check' : 'down'} size={16} />
-              {balance >= 0 ? 'Solde positif' : 'Solde déficitaire'}
+              <Icon name={!known ? 'clock' : balance >= 0 ? 'check' : 'down'} size={16} />
+              {!known ? 'Source à compléter' : balance >= 0 ? 'Solde positif' : 'Solde déficitaire'}
             </span>
             <span>Cumul depuis le début du suivi</span>
           </div>
@@ -77,15 +90,35 @@ export default function Dashboard({ data, navigate, readOnly }) {
       <div className="stats-grid stats-three">
         <Stat
           label="Entrées cumulées"
-          value={<Money value={income} />}
-          detail={`${data.alim.length} source${data.alim.length > 1 ? 's' : ''} de financement`}
+          value={
+            income === null ? (
+              <span className="unavailable-stat">Non disponible</span>
+            ) : (
+              <Money value={income} />
+            )
+          }
+          detail={
+            income === null
+              ? 'Historique des entrées non disponible'
+              : `${data.alim.length} source${data.alim.length > 1 ? 's' : ''} de financement`
+          }
           icon="up"
           tone="mint"
         />
         <Stat
           label="Dépenses cumulées"
-          value={<Money value={expenses} />}
-          detail={`${data.charges.length} charge${data.charges.length > 1 ? 's' : ''} enregistrée${data.charges.length > 1 ? 's' : ''}`}
+          value={
+            expenses === null ? (
+              <span className="unavailable-stat">Non disponible</span>
+            ) : (
+              <Money value={expenses} />
+            )
+          }
+          detail={
+            expenses === null
+              ? 'Historique des charges non disponible'
+              : `${data.charges.length} charge${data.charges.length > 1 ? 's' : ''} enregistrée${data.charges.length > 1 ? 's' : ''}`
+          }
           icon="down"
           tone="rose"
         />

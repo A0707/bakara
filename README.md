@@ -13,6 +13,8 @@ npm run dev
 
 La configuration publique du projet Supabase existant est conservée dans `src/lib/config.js`. Vous pouvez la remplacer avec les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` dans `.env.local` (voir `.env.example`). Utiliser exclusivement une clé publique/anon ; jamais de clé `service_role` dans le frontend.
 
+Le mode local est limité au serveur de développement : un build de préproduction ou production se connecte à Supabase même si `VITE_LOCAL_MODE=true` est défini par erreur. Les paramètres par défaut ciblent le projet Bakara `vpzsrmwthtllmwmsgfsn`. Une collection absente de la réponse est signalée comme indisponible, et ne sert pas à calculer un faux solde à zéro ou déficitaire.
+
 Pour développer sans connexion à Supabase, définir `VITE_LOCAL_MODE=true` dans `.env.local`. Ce mode utilise les clés historiques `bakara_charges`, `bakara_alim`, `bakara_biens` et `bakara_locataires` de ce navigateur. Les données initiales de l’ancienne application restent disponibles en mode local lorsque ces clés n’existent pas. Ne pas activer ce mode dans un déploiement partagé.
 
 ## Architecture
@@ -38,6 +40,8 @@ Le repository charge les quatre collections dans une requête. Les règles méti
 La structure historique stocke toujours une collection entière par ligne. Deux appareils peuvent donc se remplacer mutuellement des modifications concurrentes : la nouvelle transaction protège les liens d’une opération, mais n’ajoute pas de résolution des conflits entre clients. Une migration vers des lignes par bien, locataire et paiement reste une évolution du backend, non exécutée ici.
 
 L’analyse et les décisions de refonte sont détaillées dans [docs/DESIGN_ARCHITECTURE.md](docs/DESIGN_ARCHITECTURE.md).
+
+La structure produit complète, le portail locataire et les fonctionnalités à développer sont proposés dans [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md). La vérification en lecture seule du 10 octobre 2026 a confirmé 17 biens, 45 charges et 10 locataires en production, avec absence de la collection `alim`. Aucune reprise des quatre entrées affichées dans l’ancienne interface n’est exécutée sans confirmation de leur source.
 
 ## Vérifier
 

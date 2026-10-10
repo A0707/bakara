@@ -30,7 +30,7 @@ const token = [
 ]
   .map((x, i) => (i < 2 ? Buffer.from(JSON.stringify(x)).toString('base64url') : x))
   .join('.');
-async function setup(role, { failRead = false } = {}) {
+async function setup(role, { failRead = false, missingIncome = false } = {}) {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     reducedMotion: 'reduce',
@@ -70,13 +70,19 @@ async function setup(role, { failRead = false } = {}) {
           status = 403;
           body = { message: 'Mock denied write', code: '42501' };
         } else {
-          rows.forEach((row) => (collections[row.id] = row.data));
+          rows.forEach((row) => {
+            collections[row.id] = row.data;
+            if (row.id === 'alim') missingIncome = false;
+          });
           body = rows;
         }
       } else if (failRead) {
         status = 403;
         body = { message: 'Mock denied read', code: '42501' };
-      } else body = Object.entries(collections).map(([id, data]) => ({ id, data }));
+      } else
+        body = Object.entries(collections)
+          .filter(([id]) => !missingIncome || id !== 'alim')
+          .map(([id, data]) => ({ id, data }));
     }
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   });
@@ -159,6 +165,24 @@ const failure = await setup('admin', { failRead: true });
 assert.equal(await failure.page.getByText('CAISSE DISPONIBLE', { exact: true }).count(), 0);
 assert.equal(failure.writes.length, 0);
 await failure.page.close();
+const partial = await setup('admin', { missingIncome: true });
+await partial.page.getByText('Solde indisponible', { exact: true }).waitFor();
+assert.equal(await partial.page.getByText('Solde déficitaire', { exact: true }).count(), 0);
+await partial.page.getByRole('button', { name: 'Entrées de caisse', exact: true }).click();
+await partial.page
+  .getByText('L’historique des entrées de caisse n’est pas disponible', { exact: false })
+  .waitFor();
+partial.allowWrites();
+await partial.page.getByRole('button', { name: 'Nouvelle entrée', exact: true }).click();
+await partial.page.getByLabel(/^Source/).fill('Entrée confirmée');
+await partial.page.getByLabel(/^Montant \(MAD\)/).fill('100');
+await partial.page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+await partial.page.getByRole('dialog').waitFor({ state: 'hidden' });
+await partial.page.getByRole('button', { name: 'Vue d’ensemble', exact: true }).click();
+await partial.page.getByText('Solde positif', { exact: true }).waitFor();
+assert.equal(partial.writes.length, 1);
+assert.deepEqual(partial.errors, []);
+await partial.page.close();
 await browser.close();
 console.log(
   'Cloud mocks passed: login, guest permissions, rejected save leaves data unchanged, retry succeeds, linked rows in one request, read failure does not show fallback money.',

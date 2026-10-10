@@ -1,5 +1,15 @@
 export const sum = (rows, field = 'm') =>
   rows.reduce((total, row) => total + (Number(row[field]) || 0), 0);
+export function cashMetrics(data) {
+  const missing = data._missingCollections || [];
+  const income = missing.includes('alim') ? null : sum(data.alim);
+  const expenses = missing.includes('charges') ? null : sum(data.charges);
+  return {
+    income,
+    expenses,
+    balance: income === null || expenses === null ? null : income - expenses,
+  };
+}
 export const paidAmount = (tenant, key) => Number(tenant.pay?.[key]?.montant ?? tenant.rent) || 0;
 export function rentMetrics(locataires, date = new Date()) {
   const key = `${date.getFullYear()}-${date.getMonth()}`;
