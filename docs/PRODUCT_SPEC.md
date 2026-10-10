@@ -4,7 +4,7 @@
 
 L’application associe finances familiales, patrimoine et suivi des loyers. La capture montre une liste de sources de financement avec un total, mais peu de contexte sur la période, les paiements ou les relations aux biens.
 
-Vérification en lecture seule le 10 octobre 2026 : le projet Supabase `bakara`, référence `vpzsrmwthtllmwmsgfsn`, est actif. La table `bakara_data` contient 17 biens, 45 charges et 10 locataires. Aucune ligne `alim` n’est présente. Les 498 780 MAD de la capture ne sont donc pas confirmables par cette table. La source des entrées doit être identifiée avant toute reprise ou import ; aucune donnée de production n’a été modifiée pendant cette analyse.
+L’application charge les collections financières et immobilières depuis Supabase. La documentation publique décrit les règles d’affichage et la structure technique, sans détailler les montants ou le contenu des dossiers de production. Le navigateur doit recharger les données après une mise à jour effectuée directement dans le backend.
 
 Le build partagé se connecte au backend Supabase. Le mode local et ses données initiales sont réservés au serveur de développement. Une collection absente se distingue d’une collection existante vide : un solde non calculable est affiché comme indisponible et ne devient ni zéro ni un déficit artificiel.
 
@@ -111,7 +111,7 @@ Typographie sans sérif : corps 14–16 px, titres 24–32 px, petits libellés 
 
 ## Ordre de développement
 
-1. Confirmer et raccorder la source des entrées ; valider l’interface avec les collections réelles et conserver les comptes existants.
+1. Valider l’interface avec les collections réelles et les comptes existants.
 2. Structurer les baux et échéances ; gérer paiements partiels, allocations et archivage.
 3. Ajouter quittances, relances, documents et portail locataire avec droits adaptés.
 4. Ajouter paiement en ligne, messagerie et automatisations après validation des règles de rapprochement.

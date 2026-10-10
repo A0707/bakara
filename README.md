@@ -41,7 +41,7 @@ La structure historique stocke toujours une collection entière par ligne. Deux 
 
 L’analyse et les décisions de refonte sont détaillées dans [docs/DESIGN_ARCHITECTURE.md](docs/DESIGN_ARCHITECTURE.md).
 
-La structure produit complète, le portail locataire et les fonctionnalités à développer sont proposés dans [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md). La vérification en lecture seule du 10 octobre 2026 a confirmé 17 biens, 45 charges et 10 locataires en production, avec absence de la collection `alim`. Aucune reprise des quatre entrées affichées dans l’ancienne interface n’est exécutée sans confirmation de leur source.
+La structure produit complète, le portail locataire et les fonctionnalités à développer sont proposés dans [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md). Une page déjà ouverte doit être rechargée pour récupérer les mises à jour effectuées directement dans le backend. La documentation publique se limite aux aspects techniques et ne détaille pas les montants ou les dossiers de production.
 
 ## Vérifier
 
