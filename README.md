@@ -53,6 +53,8 @@ npm run test:ui
 
 Les tests de connexion simulée demandent une seconde instance sans `VITE_LOCAL_MODE` : `npm run dev -- --port 5174`, puis `npm run test:auth`. Toutes ses requêtes vers Supabase sont interceptées ; aucune donnée distante n’est modifiée. `PLAYWRIGHT_EXECUTABLE_PATH` permet de réutiliser un Chromium installé. Les captures sont générées dans `test-results/`.
 
+Après compilation, `npm run preview` puis `npm run test:pwa` vérifient les assets de production et le chargement hors connexion de la page de connexion.
+
 ## Déploiement
 
 Vercel exécute `npm run build` et publie `dist/`. Les fichiers statiques restent exclus de la réécriture SPA. Le service worker ne met en cache que les fichiers de l’application et les assets du même domaine ; les API et sessions ne sont jamais mises en cache. Une mise à jour attend la fermeture des anciens onglets pour éviter d’interrompre une saisie. La disponibilité hors connexion de l’interface ne garantit pas une session Supabase ni l’accès aux données financières.
