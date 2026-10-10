@@ -11,6 +11,13 @@ const context = await browser.newContext({
   reducedMotion: 'reduce',
 });
 const page = await context.newPage();
+// Browser-native installation UI cannot be interacted with by this test. Keep
+// the manual path deterministic, then dispatch a controlled prompt below.
+await page.addInitScript(() =>
+  window.addEventListener('beforeinstallprompt', (event) => {
+    if (!event.bakaraTest) event.stopImmediatePropagation();
+  }),
+);
 const base = process.env.PWA_TEST_URL || 'http://127.0.0.1:4173';
 page.setDefaultTimeout(10000);
 const errors = [];
@@ -31,6 +38,7 @@ await page.getByRole('dialog', { name: 'Bakara sur votre téléphone' }).waitFor
 await page.getByRole('button', { name: 'Compris', exact: true }).click();
 await page.evaluate(() => {
   const event = new Event('beforeinstallprompt', { cancelable: true });
+  event.bakaraTest = true;
   event.prompt = async () => {
     window.installPrompted = true;
   };
@@ -90,6 +98,9 @@ const ios = await browser.newContext({
   reducedMotion: 'reduce',
 });
 const iphone = await ios.newPage();
+await iphone.addInitScript(() =>
+  window.addEventListener('beforeinstallprompt', (event) => event.stopImmediatePropagation()),
+);
 await iphone.goto(base);
 await iphone.getByRole('button', { name: 'Installer Bakara', exact: true }).click();
 await iphone.getByText('Ouvrez ce site dans Safari.', { exact: true }).waitFor();
