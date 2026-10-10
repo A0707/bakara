@@ -18,9 +18,10 @@ Pour développer sans connexion à Supabase, définir `VITE_LOCAL_MODE=true` dan
 ## Architecture
 
 - `src/pages/` : tableau de bord, connexion et quatre modules de gestion.
-- `src/components/` : champs, boutons, badges, dialogue accessible et icônes SVG.
+- `src/components/` : navigation, champs, formulaires, boutons, badges, dialogues natifs et icônes SVG.
 - `src/hooks/` : session/profil et chargement/sauvegarde des collections.
-- `src/lib/` : accès Supabase, stockage, migrations compatibles et calculs financiers.
+- `src/lib/` : règles métier pures, repository injectable, migrations et calculs financiers.
+- `src/app.css` : styles et tokens de l’interface, communs à tous les écrans.
 - `public/` : manifeste, icônes et service worker.
 - `tests/` : migrations, calculs et scénarios navigateur.
 
@@ -30,7 +31,13 @@ Le solde de caisse reste `entrées − charges`. Les loyers sont suivis séparé
 
 Les utilisateurs `admin` et `family` peuvent modifier ; les autres profils et les profils non chargés sont en lecture seule. Ces contrôles d’interface complètent les politiques RLS existantes : la base reste responsable des autorisations. Cette refonte ne modifie pas les politiques du projet distant.
 
-Une erreur de lecture ne remplace jamais les données distantes par des données initiales. Une sauvegarde est confirmée uniquement après une réponse sans erreur. Un échec bloque l’édition et permet d’exporter les modifications visibles ou de recharger les données enregistrées. Les écritures d’une même collection sont ordonnées. Les associations bien/locataire utilisent toujours deux écritures, comme auparavant ; elles ne constituent pas une transaction serveur.
+Une erreur de lecture ne remplace jamais les données distantes par des données initiales. Les montants historiques initiaux sont conservés uniquement pour le développement local et exclus des fichiers du build partagé. Les pages sont chargées à la demande et précachées pour la PWA.
+
+Le repository charge les quatre collections dans une requête. Les règles métier génèrent les modifications sans changer les tableaux d’origine. Les associations et suppressions bien/locataire envoient les deux collections dans un seul upsert, exécuté dans une transaction de la Data API. L’interface adopte les modifications uniquement après confirmation. Pendant l’écriture, une seconde opération est empêchée. En cas d’échec, les données restent inchangées et le formulaire permet de réessayer. En mode local, une erreur d’écriture déclenche la restauration des anciennes valeurs.
+
+La structure historique stocke toujours une collection entière par ligne. Deux appareils peuvent donc se remplacer mutuellement des modifications concurrentes : la nouvelle transaction protège les liens d’une opération, mais n’ajoute pas de résolution des conflits entre clients. Une migration vers des lignes par bien, locataire et paiement reste une évolution du backend, non exécutée ici.
+
+L’analyse et les décisions de refonte sont détaillées dans [docs/DESIGN_ARCHITECTURE.md](docs/DESIGN_ARCHITECTURE.md).
 
 ## Vérifier
 
@@ -39,6 +46,8 @@ npm test
 npm run build
 npm run format:check
 npm audit
+npx playwright install chromium
+npm run test:browser
 ```
 
 Tests navigateur en mode local :
@@ -54,6 +63,8 @@ npm run test:ui
 Les tests de connexion simulée demandent une seconde instance sans `VITE_LOCAL_MODE` : `npm run dev -- --port 5174`, puis `npm run test:auth`. Toutes ses requêtes vers Supabase sont interceptées ; aucune donnée distante n’est modifiée. `PLAYWRIGHT_EXECUTABLE_PATH` permet de réutiliser un Chromium installé. Les captures sont générées dans `test-results/`.
 
 Après compilation, `npm run preview` puis `npm run test:pwa` vérifient les assets de production et le chargement hors connexion de la page de connexion.
+
+`npm run test:browser` démarre et ferme automatiquement des instances de test locales sur les ports 5283, 5284 et 4283. Il couvre les opérations, la connexion simulée, le cache PWA et les contrôles axe sur les cinq écrans. Les tests sont également exécutés dans GitHub Actions. Aucun test ne se connecte à un compte réel ni n’écrit dans la base distante.
 
 ## Installation mobile
 

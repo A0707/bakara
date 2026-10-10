@@ -1,4 +1,5 @@
 import { chromium } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
 const browser = await chromium.launch({
   headless: true,
@@ -29,12 +30,19 @@ const token = [
 ]
   .map((x, i) => (i < 2 ? Buffer.from(JSON.stringify(x)).toString('base64url') : x))
   .join('.');
-async function setup(role) {
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+async function setup(role, { failRead = false } = {}) {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: 'reduce',
+  });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   let loginAttempt = 0,
-    writes = 0;
+    denyWrites = true;
+  const writes = [],
+    collections = { charges: [], alim: [], biens: [], locataires: [] };
   await page.route('https://vpzsrmwthtllmwmsgfsn.supabase.co/**', async (route) => {
     const url = new URL(route.request().url());
     let status = 200,
@@ -56,47 +64,102 @@ async function setup(role) {
     else if (url.pathname.endsWith('/profiles')) body = { id, role, email: user.email };
     else if (url.pathname.endsWith('/bakara_data')) {
       if (route.request().method() === 'POST') {
-        writes++;
+        const rows = route.request().postDataJSON();
+        writes.push(rows);
+        if (denyWrites) {
+          status = 403;
+          body = { message: 'Mock denied write', code: '42501' };
+        } else {
+          rows.forEach((row) => (collections[row.id] = row.data));
+          body = rows;
+        }
+      } else if (failRead) {
         status = 403;
-        body = { message: 'Mock denied write', code: '42501' };
-      } else body = { data: [] };
+        body = { message: 'Mock denied read', code: '42501' };
+      } else body = Object.entries(collections).map(([id, data]) => ({ id, data }));
     }
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
   });
   await page.goto(base);
-  await page.getByRole('heading', { name: 'Heureux de vous retrouver.' }).waitFor();
-  await page.screenshot({ path: `test-results/login-${role}.png`, fullPage: true });
+  await page.getByRole('heading', { name: 'Bienvenue chez Bakara.', exact: true }).waitFor();
+  const a11y = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  assert.deepEqual(
+    a11y.violations.map((v) => v.id),
+    [],
+    'login accessibility',
+  );
+  await page.screenshot({ path: `test-results/redesign-login-${role}.png`, fullPage: true });
   await page.getByLabel('Adresse email').fill(user.email);
   await page.getByLabel('Mot de passe').fill('mock-password');
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
   await page.getByRole('alert').waitFor();
   await page.getByRole('button', { name: 'Se connecter', exact: true }).click();
-  await page.getByRole('heading', { name: 'Votre patrimoine, en un regard.' }).waitFor();
-  await page.getByText('CAISSE DISPONIBLE', { exact: true }).waitFor();
-  return { page, errors, getWrites: () => writes };
+  if (failRead)
+    await page.getByRole('heading', { name: 'Retrouvons vos données.', exact: true }).waitFor();
+  else await page.getByText('CAISSE DISPONIBLE', { exact: true }).waitFor();
+  return {
+    page,
+    errors,
+    writes,
+    collections,
+    allowWrites: () => {
+      denyWrites = false;
+    },
+  };
 }
 const admin = await setup('admin');
 await admin.page.getByRole('button', { name: 'Charges', exact: true }).click();
-await admin.page.getByRole('button', { name: '+ Charge', exact: true }).click();
-await admin.page.getByLabel('Designation', { exact: true }).fill('Échec simulé');
-await admin.page.getByLabel('Categorie', { exact: true }).selectOption('Divers');
-await admin.page.getByLabel('Montant (MAD)', { exact: true }).fill('15');
-await admin.page.getByRole('button', { name: 'Ajouter', exact: true }).click();
-await admin.page.getByText('La modification n’a pas été sauvegardée.', { exact: false }).waitFor();
-assert.equal(admin.getWrites(), 1);
-assert.equal(await admin.page.getByRole('button', { name: '+ Charge', exact: true }).count(), 0);
-assert.equal(await admin.page.getByText('Enregistré', { exact: true }).count(), 0);
+await admin.page.getByRole('button', { name: 'Nouvelle charge', exact: true }).click();
+await admin.page.getByLabel(/^Désignation/).fill('Échec simulé');
+await admin.page.getByLabel(/^Catégorie/).selectOption('Divers');
+await admin.page.getByLabel(/^Montant \(MAD\)/).fill('15');
+await admin.page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+await admin.page
+  .getByRole('alert')
+  .getByText('La modification n’a pas été sauvegardée.', { exact: false })
+  .waitFor();
+assert.equal(admin.writes.length, 1);
+assert.equal(admin.collections.charges.length, 0);
+assert.equal(
+  await admin.page
+    .locator('.ledger-table')
+    .getByRole('cell', { name: 'Échec simulé', exact: true })
+    .count(),
+  0,
+);
+admin.allowWrites();
+await admin.page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+await admin.page.getByRole('dialog').waitFor({ state: 'hidden' });
+await admin.page.getByRole('cell', { name: 'Échec simulé', exact: true }).waitFor();
+await admin.page.getByRole('button', { name: 'Biens immobiliers', exact: true }).click();
+await admin.page.getByRole('button', { name: 'Nouveau bien', exact: true }).click();
+await admin.page.getByLabel(/^Nom du bien/).fill('Bien cloud simulé');
+await admin.page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+await admin.page.getByRole('dialog').waitFor({ state: 'hidden' });
+assert.deepEqual(
+  admin.writes
+    .at(-1)
+    .map((row) => row.id)
+    .sort(),
+  ['biens', 'locataires'],
+);
 assert.deepEqual(admin.errors, []);
 await admin.page.close();
 const guest = await setup('guest');
 await guest.page.getByRole('button', { name: 'Charges', exact: true }).click();
 await guest.page.getByText('Vous consultez cet espace en lecture seule.').waitFor();
-assert.equal(await guest.page.getByRole('button', { name: '+ Charge', exact: true }).count(), 0);
-assert.equal(guest.getWrites(), 0);
+assert.equal(
+  await guest.page.getByRole('button', { name: 'Nouvelle charge', exact: true }).count(),
+  0,
+);
+assert.equal(guest.writes.length, 0);
 assert.deepEqual(guest.errors, []);
-await guest.page.setViewportSize({ width: 390, height: 844 });
-await guest.page.screenshot({ path: 'test-results/guest-mobile.png', fullPage: true });
+await guest.page.close();
+const failure = await setup('admin', { failRead: true });
+assert.equal(await failure.page.getByText('CAISSE DISPONIBLE', { exact: true }).count(), 0);
+assert.equal(failure.writes.length, 0);
+await failure.page.close();
 await browser.close();
 console.log(
-  'Mocked cloud checks passed: invalid and valid login, admin edit, save rejection, guest read-only. No live database requests.',
+  'Cloud mocks passed: login, guest permissions, rejected save leaves data unchanged, retry succeeds, linked rows in one request, read failure does not show fallback money.',
 );

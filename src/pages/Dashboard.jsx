@@ -1,254 +1,247 @@
 import React from 'react';
+import { Button, Stat, Money, Badge, PanelHeader, EmptyState } from '../components/UI';
 import Icon from '../components/Icon';
-import { fmt, CAT_C } from '../lib/data';
 import { sum, rentMetrics, categoryTotals } from '../lib/metrics';
-export default function Dashboard({ data, navigate }) {
-  const { charges, alim, biens, locataires } = data;
-  const income = sum(alim),
-    expenses = sum(charges),
+const colors = ['#5263dc', '#9b74d6', '#40a487', '#edaa48', '#d56488', '#569cc0', '#9e927c'];
+export default function Dashboard({ data, navigate, readOnly }) {
+  const income = sum(data.alim),
+    expenses = sum(data.charges),
     balance = income - expenses;
-  const rents = rentMetrics(locataires),
-    categories = categoryTotals(charges);
-  const occupied = biens.filter((b) => b.locataireId).length;
-  const recent = [...charges]
-    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id)
+  const rents = rentMetrics(data.locataires),
+    categories = categoryTotals(data.charges);
+  const occupied = data.biens.filter((b) => b.locataireId != null).length;
+  const recent = [...data.charges]
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || Number(b.id) - Number(a.id))
     .slice(0, 5);
   const month = new Intl.DateTimeFormat('fr-MA', { month: 'long', year: 'numeric' }).format(
     new Date(),
   );
+  const gradient = categories.length
+    ? categories
+        .map(({ amount }, i) => {
+          const start = (categories.slice(0, i).reduce((s, c) => s + c.amount, 0) / expenses) * 100;
+          return `${colors[i % colors.length]} ${start}% ${start + (amount / expenses) * 100}%`;
+        })
+        .join(',')
+    : '#e8ecf6 0% 100%';
   return (
-    <>
-      <div className="overview-grid">
+    <div className="page-stack">
+      <div className="dashboard-hero-grid">
         <section className={`balance-card ${balance < 0 ? 'negative' : ''}`}>
           <div className="balance-top">
             <span>
-              <span className="light-dot" />
+              <i />
               CAISSE DISPONIBLE
             </span>
-            <Icon name="wallet" size={24} />
+            <span className="balance-wallet">
+              <Icon name="wallet" size={24} />
+            </span>
           </div>
           <div className="balance-number">
-            {fmt(balance)}
-            <span>MAD</span>
+            <Money value={balance} />
           </div>
-          <p>Le solde de vos entrées et de vos dépenses</p>
-          <div className="balance-bottom">
+          <p>Une vision claire de vos finances familiales.</p>
+          <div className="balance-footer">
             <span>
-              <Icon name={balance >= 0 ? 'check' : 'down'} size={15} />
+              <Icon name={balance >= 0 ? 'check' : 'down'} size={16} />
               {balance >= 0 ? 'Solde positif' : 'Solde déficitaire'}
             </span>
-            <span>Depuis le début du suivi</span>
+            <span>Cumul depuis le début du suivi</span>
           </div>
-          <svg className="balance-art" viewBox="0 0 220 180" aria-hidden="true">
-            <circle cx="165" cy="170" r="110" />
-            <circle cx="165" cy="170" r="78" />
-            <circle cx="165" cy="170" r="46" />
-          </svg>
+          <div className="balance-orbit" aria-hidden="true" />
         </section>
-        <section className="metric-card">
-          <span className="metric-icon green">
-            <Icon name="up" />
-          </span>
-          <span className="metric-label">Total des entrées</span>
-          <strong>
-            {fmt(income)}
-            <small>MAD</small>
-          </strong>
-          <p>
-            {alim.length} source{alim.length !== 1 ? 's' : ''} de financement
-          </p>
-          <button className="text-button" onClick={() => navigate('al')}>
-            Voir les entrées
-            <Icon name="arrow" size={16} />
-          </button>
-        </section>
-        <section className="metric-card">
-          <span className="metric-icon orange">
-            <Icon name="down" />
-          </span>
-          <span className="metric-label">Total des dépenses</span>
-          <strong>
-            {fmt(expenses)}
-            <small>MAD</small>
-          </strong>
-          <p>
-            {charges.length} charge{charges.length !== 1 ? 's' : ''} enregistrée
-            {charges.length !== 1 ? 's' : ''}
-          </p>
-          <button className="text-button" onClick={() => navigate('ch')}>
-            Voir les charges
-            <Icon name="arrow" size={16} />
-          </button>
+        <section className="quick-card">
+          <div>
+            <span className="eyebrow">ON AVANCE ENSEMBLE</span>
+            <h2>Tout est à portée de main.</h2>
+            <p>Enregistrez vos opérations et gardez votre suivi à jour.</p>
+          </div>
+          <div className="quick-actions">
+            {!readOnly ? (
+              <>
+                <Button icon="plus" onClick={() => navigate('ch', 'new')}>
+                  Nouvelle charge
+                </Button>
+                <Button icon="up" variant="secondary" onClick={() => navigate('al', 'new')}>
+                  Nouvelle entrée
+                </Button>
+              </>
+            ) : (
+              <Button icon="wallet" variant="secondary" onClick={() => navigate('lo')}>
+                Consulter les loyers
+              </Button>
+            )}
+          </div>
         </section>
       </div>
+      <div className="stats-grid stats-three">
+        <Stat
+          label="Entrées cumulées"
+          value={<Money value={income} />}
+          detail={`${data.alim.length} source${data.alim.length > 1 ? 's' : ''} de financement`}
+          icon="up"
+          tone="mint"
+        />
+        <Stat
+          label="Dépenses cumulées"
+          value={<Money value={expenses} />}
+          detail={`${data.charges.length} charge${data.charges.length > 1 ? 's' : ''} enregistrée${data.charges.length > 1 ? 's' : ''}`}
+          icon="down"
+          tone="rose"
+        />
+        <Stat
+          label="Biens occupés"
+          value={
+            <>
+              {occupied}
+              <small> / {data.biens.length}</small>
+            </>
+          }
+          detail={`${data.biens.length - occupied} disponible${data.biens.length - occupied > 1 ? 's' : ''} à la location`}
+          icon="building"
+          tone="violet"
+        />
+      </div>
       <div className="dashboard-middle">
-        <section className="panel category-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">MIEUX COMPRENDRE</span>
-              <h2>Où vont vos dépenses ?</h2>
-            </div>
-            <span className="muted-label">Cumul du suivi</span>
-          </div>
+        <section className="panel">
+          <PanelHeader
+            eyebrow="COMPRENDRE VOS DÉPENSES"
+            title="Chaque dirham a sa place."
+            action={<Badge>Cumul du suivi</Badge>}
+          />
           {categories.length ? (
             <div className="category-content">
-              <div className="donut-wrap">
-                <div
-                  className="donut"
-                  role="img"
-                  aria-label={`Répartition de ${fmt(expenses)} MAD de dépenses`}
-                  style={{
-                    background: `conic-gradient(${(() => {
-                      let start = 0;
-                      return categories
-                        .map(({ category, amount }) => {
-                          const end = start + (expenses ? (amount / expenses) * 100 : 0);
-                          const result = `${CAT_C[category] || '#94a3b8'} ${start}% ${end}%`;
-                          start = end;
-                          return result;
-                        })
-                        .join(',');
-                    })()})`,
-                  }}
-                >
-                  <div>
-                    <span>Total dépenses</span>
-                    <strong>
-                      {new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 0 }).format(
-                        expenses,
-                      )}
-                    </strong>
-                    <small>MAD</small>
-                  </div>
+              <div
+                className="donut"
+                role="img"
+                aria-label={`Dépenses réparties entre ${categories.length} catégories`}
+                style={{ background: `conic-gradient(${gradient})` }}
+              >
+                <div>
+                  <span>Dépenses</span>
+                  <strong>
+                    {new Intl.NumberFormat('fr-MA', { maximumFractionDigits: 0 }).format(expenses)}
+                  </strong>
+                  <small>MAD</small>
                 </div>
-                <span className="chart-caption">{categories.length} catégories de dépenses</span>
               </div>
               <div className="category-legend">
-                {categories.map(({ category, amount }) => (
+                {categories.map(({ category, amount }, i) => (
                   <div className="legend-row" key={category}>
-                    <span className="legend-name">
-                      <i style={{ background: CAT_C[category] || '#94a3b8' }} />
+                    <span>
+                      <i style={{ background: colors[i % colors.length] }} />
                       {category}
                     </span>
-                    <span>
-                      <strong>{fmt(amount)}</strong>
+                    <div>
+                      <Money value={amount} currency={false} />
                       <small>{expenses ? Math.round((amount / expenses) * 100) : 0}%</small>
-                    </span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="empty-state">Vos premières dépenses apparaîtront ici.</div>
+            <EmptyState
+              title="Vos dépenses apparaîtront ici"
+              description="La répartition se construit à chaque charge enregistrée."
+              icon="down"
+            />
           )}
         </section>
-        <section className="panel rent-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">VOTRE IMMOBILIER</span>
-              <h2>Loyers du mois</h2>
-            </div>
-            <span className="metric-icon lavender">
-              <Icon name="building" />
-            </span>
-          </div>
-          <span className="month-label">{month}</span>
-          <div className="rent-amount">
-            {fmt(rents.received)} <small>MAD encaissés</small>
-          </div>
-          <div className="progress-label">
-            <span>
-              {rents.paid.length} / {locataires.length} loyers réglés
-            </span>
-            <strong>{rents.pct}%</strong>
-          </div>
-          <div className="progress-track">
-            <span style={{ width: rents.pct + '%' }} />
-          </div>
-          <div className="rent-due">
-            <span>Reste à recevoir</span>
+        <section className="panel rent-summary">
+          <PanelHeader
+            eyebrow="LE SUIVI DU MOIS"
+            title="Vos loyers"
+            action={
+              <span className="stat-icon tone-violet">
+                <Icon name="building" />
+              </span>
+            }
+          />
+          <div className="rent-summary-body">
+            <span className="month-label">{month}</span>
             <strong>
-              {fmt(rents.due)} <small>MAD</small>
+              <Money value={rents.received} />
             </strong>
+            <p>encaissés ce mois</p>
+            <div className="progress-label">
+              <span>
+                {rents.paid.length} / {data.locataires.length} réglés
+              </span>
+              <strong>{rents.pct}%</strong>
+            </div>
+            <div className="progress-track">
+              <span style={{ width: rents.pct + '%' }} />
+            </div>
+            <div className="due-summary">
+              <span>Reste à recevoir</span>
+              <Money value={rents.due} />
+            </div>
+            <Button variant="secondary" icon="arrow" onClick={() => navigate('lo')}>
+              Voir les loyers
+            </Button>
           </div>
-          <button className="button button-outline rent-button" onClick={() => navigate('lo')}>
-            Gérer les loyers
-            <Icon name="arrow" size={16} />
-          </button>
         </section>
       </div>
       <div className="dashboard-bottom">
         <section className="panel recent-panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">LE FIL DE VOS FINANCES</span>
-              <h2>Dernières charges</h2>
-            </div>
-            <button className="text-button" onClick={() => navigate('ch')}>
-              Tout voir
-              <Icon name="arrow" size={16} />
-            </button>
-          </div>
-          <div className="recent-list">
-            {recent.map((x) => (
-              <div className="recent-row" key={x.id}>
-                <span
-                  className="transaction-icon"
-                  style={{
-                    color: CAT_C[x.c] || '#64748b',
-                    background: (CAT_C[x.c] || '#64748b') + '12',
-                  }}
-                >
-                  <Icon name="down" size={18} />
-                </span>
-                <div className="recent-description">
-                  <strong>{x.d}</strong>
-                  <span>
-                    {x.c} ·{' '}
-                    {x.date
-                      ? new Intl.DateTimeFormat('fr-MA').format(new Date(x.date + 'T12:00:00'))
-                      : x.p || 'Date non renseignée'}
+          <PanelHeader
+            eyebrow="AU FIL DE VOS FINANCES"
+            title="Dernières charges"
+            action={
+              <Button small variant="ghost" onClick={() => navigate('ch')}>
+                Tout voir
+                <Icon name="arrow" size={16} />
+              </Button>
+            }
+          />
+          {recent.length ? (
+            <div className="recent-list">
+              {recent.map((row) => (
+                <div className="recent-row" key={row.id}>
+                  <span className="transaction-symbol tone-rose">
+                    <Icon name="down" />
                   </span>
+                  <div>
+                    <strong>{row.d}</strong>
+                    <span>
+                      {row.c} · {row.date || row.p || 'Date non renseignée'}
+                    </span>
+                  </div>
+                  <Money value={row.m} />
                 </div>
-                <strong className="recent-amount">
-                  − {fmt(x.m)}
-                  <small>MAD</small>
-                </strong>
-              </div>
-            ))}
-            {!recent.length && <div className="empty-state">Aucune charge enregistrée.</div>}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="Aucune charge pour le moment"
+              description="Votre historique apparaîtra ici."
+              icon="clock"
+            />
+          )}
         </section>
-        <section className="property-card">
-          <span className="property-icon">
-            <Icon name="building" size={28} />
+        <section className="patrimony-card">
+          <span className="patrimony-icon">
+            <Icon name="building" size={32} />
           </span>
           <span className="eyebrow">VOTRE PATRIMOINE</span>
-          <h2>Un regard sur vos biens.</h2>
-          <div className="property-counts">
-            <div>
-              <strong>{biens.length}</strong>
-              <span>biens au total</span>
-            </div>
-            <div>
-              <strong>
-                {occupied}
-                <small>/{biens.length}</small>
-              </strong>
-              <span>biens occupés</span>
-            </div>
+          <h2>Un espace pour chaque projet.</h2>
+          <p>Retrouvez vos biens, leurs loyers et leurs locataires.</p>
+          <div className="patrimony-count">
+            <strong>{data.biens.length}</strong>
+            <span>
+              biens immobiliers
+              <br />
+              <b>
+                {occupied} occupé{occupied > 1 ? 's' : ''}
+              </b>
+            </span>
           </div>
-          <div className="property-divider" />
-          <p>
-            {biens.length - occupied} bien{biens.length - occupied !== 1 ? 's' : ''} disponible
-            {biens.length - occupied !== 1 ? 's' : ''} à la location
-          </p>
-          <button className="text-button" onClick={() => navigate('bi')}>
-            Explorer le patrimoine
-            <Icon name="arrow" size={16} />
-          </button>
+          <Button variant="secondary" icon="arrow" onClick={() => navigate('bi')}>
+            Explorer les biens
+          </Button>
         </section>
       </div>
-    </>
+    </div>
   );
 }

@@ -1,5 +1,38 @@
 import React from 'react';
 const paths = {
+  edit: (
+    <>
+      <path d="m14 4 6 6M4 20l4-1L21 6a2 2 0 0 0-3-3L5 16l-1 4Z" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m16 16 5 5" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="7" r="3" />
+      <path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5" />
+    </>
+  ),
+  trend: (
+    <>
+      <path d="m3 17 6-6 4 4 8-10M15 5h6v6" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
   grid: (
     <>
       <rect x="3" y="3" width="7" height="7" rx="2" />

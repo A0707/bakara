@@ -16,7 +16,7 @@ page.setDefaultTimeout(10000);
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 await page.goto(base);
-await page.getByRole('heading', { name: 'Heureux de vous retrouver.' }).waitFor();
+await page.getByRole('heading', { name: 'Bienvenue chez Bakara.' }).waitFor();
 const manifestResponse = await page.request.get(base + '/manifest.json');
 const manifest = await manifestResponse.json();
 assert.equal(manifest.display, 'standalone');
@@ -57,7 +57,7 @@ assert.equal(
 assert.ok(assets.filter((url) => url.includes('/assets/')).length >= 2);
 await context.setOffline(true);
 await page.reload();
-await page.getByRole('heading', { name: 'Heureux de vous retrouver.' }).waitFor();
+await page.getByRole('heading', { name: 'Bienvenue chez Bakara.' }).waitFor();
 // Chromium's network emulation can leave navigator.onLine true in a
 // service-worker-controlled page. Exercise the browser status event explicitly.
 await page.evaluate(() => {

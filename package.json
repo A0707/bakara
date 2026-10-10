@@ -11,6 +11,7 @@
     "test:ui": "node tests/browser.mjs",
     "test:auth": "node tests/auth.mjs",
     "test:pwa": "node tests/pwa.mjs",
+    "test:browser": "node tests/run-browser.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -20,6 +21,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "prettier": "^3.9.10",

@@ -1,0 +1,42 @@
+export const NAVIGATION = [
+  {
+    key: 'dash',
+    label: 'Vue d’ensemble',
+    short: 'Accueil',
+    icon: 'grid',
+    title: 'Votre vue d’ensemble.',
+    description: 'Le point sur votre caisse, vos dépenses et vos biens.',
+  },
+  {
+    key: 'ch',
+    label: 'Charges',
+    short: 'Charges',
+    icon: 'down',
+    title: 'Vos charges.',
+    description: 'Chaque dépense à sa place, chaque montant sous contrôle.',
+  },
+  {
+    key: 'al',
+    label: 'Entrées de caisse',
+    short: 'Entrées',
+    icon: 'up',
+    title: 'Vos entrées de caisse.',
+    description: 'Retrouvez les sources qui alimentent vos projets.',
+  },
+  {
+    key: 'lo',
+    label: 'Loyers & locataires',
+    short: 'Loyers',
+    icon: 'wallet',
+    title: 'Vos loyers & locataires.',
+    description: 'Un suivi clair des paiements, mois après mois.',
+  },
+  {
+    key: 'bi',
+    label: 'Biens immobiliers',
+    short: 'Biens',
+    icon: 'building',
+    title: 'Vos biens immobiliers.',
+    description: 'Organisez votre patrimoine et suivez son occupation.',
+  },
+];

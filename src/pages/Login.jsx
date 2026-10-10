@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Inp } from '../components/UI';
+import { Field } from '../components/UI';
+import { Brand } from '../components/Shell';
 import Icon from '../components/Icon';
 import PwaInstall, { OfflineNotice } from '../components/PwaInstall';
 export default function Login({ pwa }) {
@@ -8,11 +9,11 @@ export default function Login({ pwa }) {
     [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
-  async function submit(e) {
-    e.preventDefault();
+  async function submit(event) {
+    event.preventDefault();
     if (busy || !pwa.online) return;
-    setError('');
     setBusy(true);
+    setError('');
     try {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
@@ -25,82 +26,84 @@ export default function Login({ pwa }) {
   return (
     <main className="login-layout">
       <section className="login-story">
-        <a href="/" className="brand">
-          <span className="brand-mark">
-            b<span>.</span>
-          </span>
-          <span>
-            bakara<span className="brand-subtitle">FINANCES & PATRIMOINE</span>
-          </span>
-        </a>
+        <Brand />
         <div className="login-message">
-          <span className="eyebrow">UN PATRIMOINE, UNE VISION</span>
+          <span className="eyebrow">VOTRE FAMILLE. VOS PROJETS.</span>
           <h1>
-            Vos finances.
+            Finances en ordre.
             <br />
-            Votre famille.
-            <br />
-            <em>En harmonie.</em>
+            <em>Projets en mouvement.</em>
           </h1>
-          <p>
-            Un espace commun pour suivre votre caisse, vos dépenses et votre patrimoine immobilier.
-          </p>
-          <div className="story-tags">
-            <span>
-              <Icon name="wallet" />
-              Finances
-            </span>
-            <span>
-              <Icon name="building" />
-              Patrimoine
-            </span>
-            <span>
-              <Icon name="shield" />
-              Sérénité
-            </span>
+          <p>Un espace partagé pour votre caisse, vos loyers et votre patrimoine. Simplement.</p>
+          <div className="story-features">
+            <div>
+              <span>
+                <Icon name="wallet" />
+              </span>
+              <strong>Des finances claires</strong>
+              <p>Votre caisse et vos opérations réunies.</p>
+            </div>
+            <div>
+              <span>
+                <Icon name="building" />
+              </span>
+              <strong>Un patrimoine suivi</strong>
+              <p>Vos biens et leurs locataires, en un regard.</p>
+            </div>
           </div>
         </div>
-        <span className="story-footer">Chaque détail compte. Chaque décision aussi.</span>
+        <span className="story-footer">
+          <Icon name="shield" size={18} />
+          Un espace commun pour avancer ensemble.
+        </span>
+        <div className="login-orbit" aria-hidden="true" />
       </section>
       <section className="login-form-side">
         <form className="login-form" onSubmit={submit}>
-          <span className="eyebrow">VOTRE ESPACE BAKARA</span>
-          <h2>Heureux de vous retrouver.</h2>
-          <p>Connectez-vous pour retrouver votre vue d’ensemble.</p>
+          <span className="login-mobile-brand">
+            <Brand />
+          </span>
+          <span className="eyebrow">HEUREUX DE VOUS RETROUVER</span>
+          <h2>Bienvenue chez Bakara.</h2>
+          <p>Connectez-vous à votre espace familial.</p>
           {!pwa.online && <OfflineNotice />}
-          <Inp l="Adresse email" v={email} onChange={setEmail} type="email" ph="vous@exemple.com" />
-          <Inp
-            l="Mot de passe"
-            v={password}
-            onChange={setPassword}
+          <Field
+            label="Adresse email"
+            type="email"
+            required
+            value={email}
+            onChange={setEmail}
+            placeholder="vous@exemple.com"
+          />
+          <Field
+            label="Mot de passe"
             type="password"
-            ph="Votre mot de passe"
+            required
+            value={password}
+            onChange={setPassword}
+            placeholder="Votre mot de passe"
           />
           {error && (
-            <div className="notice error" role="alert">
+            <div className="notice notice-error" role="alert">
               {error}
             </div>
           )}
           <button
-            className="button login-submit"
+            type="submit"
+            className="button button-primary login-submit"
             disabled={busy || !email.trim() || !password || !pwa.online}
           >
             {busy ? 'Connexion en cours…' : 'Se connecter'}
             <Icon name="arrow" />
           </button>
-          <div className="login-help">
-            <Icon name="shield" size={16} />
-            <span>
-              Votre compte est créé par l’administrateur.
-              <br />
-              Contactez-le si vous avez besoin d’aide.
-            </span>
-          </div>
+          <p className="login-help">
+            Votre compte est créé par l’administrateur. Contactez-le si vous avez besoin d’aide.
+          </p>
           <div className="login-install">
             <PwaInstall pwa={pwa} />
           </div>
         </form>
-        <span className="login-footer">Bakara · Gestion financière familiale</span>
+        <span className="login-footer">Bakara · Finances & patrimoine</span>
       </section>
     </main>
   );
